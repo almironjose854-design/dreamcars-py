@@ -6,9 +6,14 @@ import {useState} from "react";
 export const whatsapp=(number:string,message="¡Hola, Dream Cars! Quiero conocer más sobre sus vehículos.")=>`https://wa.me/${number}?text=${encodeURIComponent(message)}`;
 export const money=(price:number|null,currency="USD")=>price===null?"Precio a consultar":new Intl.NumberFormat("es-PY",{style:"currency",currency,maximumFractionDigits:0}).format(price);
 export const availability:Record<string,string>={consult:"Consultar disponibilidad",available:"Disponible",reserved:"Reservado",sold:"Vendido"};
+let csrfToken="";
+export class ApiRequestError extends Error { constructor(message:string,public status:number){super(message);} }
 export async function api<T=any>(path:string,options:RequestInit={}):Promise<T>{
-  const response=await fetch(`/api/${path}`,{...options,headers:{"Content-Type":"application/json",...options.headers}});
-  const result=await response.json() as any;if(!response.ok)throw new Error(result.details?.length?`${result.error} ${result.details.join(" · ")}`:result.error||"No se pudo completar la operación.");return result as T;
+  const response=await fetch(`/api/${path}`,{credentials:"same-origin",cache:"no-store",...options,headers:{"Content-Type":"application/json",...(csrfToken?{"X-CSRF-Token":csrfToken}:{}),...options.headers}});
+  let result:any;try{result=await response.json();}catch{throw new ApiRequestError("El servidor no pudo responder. Volvé a intentar en unos instantes.",response.status);}
+  if(!response.ok){if(response.status===401&&path!=="auth/login"&&typeof window!=="undefined")window.dispatchEvent(new Event("admin-session-expired"));throw new ApiRequestError(result.details?.length?`${result.error} ${result.details.join(" · ")}`:result.error||"No se pudo completar la operación.",response.status);}
+  if("csrfToken" in result)csrfToken=result.csrfToken||"";if(path==="auth/logout"||path==="auth/revoke")csrfToken="";
+  return result as T;
 }
 export function Instagram({size=20}:{size?:number}){return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".8" fill="currentColor" stroke="none"/></svg>;}
 export function Brand({settings}:{settings:Settings}) {return <a className="brand" href="/" aria-label="Dream Cars PY, inicio"><img src={settings.logo} alt={settings.name} width="150" height="52"/><span>EST. 2018 · PARAGUAY</span></a>;}
@@ -20,7 +25,7 @@ export function Footer({settings}:{settings:Settings}){return <footer className=
 export function ContactForm({vehicleId="",vehicleName="",defaultType="general",onSuccess}:{vehicleId?:string;vehicleName?:string;defaultType?:string;onSuccess?:()=>void}){
   const [busy,setBusy]=useState(false),[feedback,setFeedback]=useState(""),[ok,setOk]=useState(false);
   return <form className="contact-form" onSubmit={async e=>{e.preventDefault();setBusy(true);setFeedback("");const form=e.currentTarget;const fd=new FormData(form);try{await api("inquiries",{method:"POST",body:JSON.stringify({name:fd.get("name"),phone:fd.get("phone"),message:fd.get("message"),consent:fd.get("consent")==="on",website:fd.get("website"),vehicleId,type:defaultType})});setOk(true);setFeedback("Recibimos tu consulta. El equipo se pondrá en contacto con vos.");form.reset();onSuccess?.();}catch(error){setOk(false);setFeedback((error as Error).message);}finally{setBusy(false);}}}>
-    <div className="form-two"><label>Tu nombre<input name="name" autoComplete="name" required minLength={2} maxLength={100} placeholder="¿Cómo te llamás?"/></label><label>WhatsApp<input name="phone" type="tel" autoComplete="tel" required pattern="[+0-9\s()-]{7,30}" maxLength={30} placeholder="+595 981 000 000"/></label></div>
+    <div className="form-two"><label>Tu nombre<input name="name" autoComplete="name" required minLength={2} maxLength={100} placeholder="¿Cómo te llamás?"/></label><label>WhatsApp<input name="phone" type="tel" autoComplete="tel" required maxLength={30} placeholder="+595 981 000 000"/></label></div>
     <label>Contanos qué estás buscando<textarea name="message" required minLength={10} maxLength={2000} rows={4} defaultValue={vehicleName?`Hola, me interesa el ${vehicleName}. Quisiera recibir más información.`:""} placeholder="Un auto, una historia, tu próxima leyenda…"/></label>
     <div className="honeypot" aria-hidden="true"><label>Sitio web<input name="website" tabIndex={-1} autoComplete="off"/></label></div>
     <label className="check-label"><input name="consent" type="checkbox" required/> <span>Acepto que Dream Cars me contacte por esta consulta y leí la <a href="/privacidad" target="_blank">política de privacidad</a>.</span></label>

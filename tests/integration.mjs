@@ -1,21 +1,17 @@
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
+import {client,initial} from './auth.mjs';
+import {randomBytes} from 'node:crypto';
 const base=process.env.TEST_BASE_URL||'http://127.0.0.1:5173';
 if(!/^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(base))throw new Error('Estas pruebas escriben datos de prueba y solo se ejecutan en localhost.');
-let cookie='';let passed=0;
-async function request(path,{method='GET',value,auth=false,origin=base}={}){
-  const response=await fetch(base+'/api/'+path,{method,headers:{'Content-Type':'application/json',...(auth?{Cookie:cookie}:{}),...(method!=='GET'?{Origin:origin}:{})},body:value===undefined?undefined:JSON.stringify(value)});
-  const text=await response.text();let data;try{data=JSON.parse(text);}catch{data={error:text};}return {status:response.status,data};
-}
+let passed=0;const signed=client(),anonymous=client();let changedPassword=null;
+const testIp=`2001:db8:${randomBytes(2).toString('hex')}:${randomBytes(2).toString('hex')}::2`;
+async function request(path,{method='GET',value,auth=false,origin=base}={}){return (auth?signed:anonymous).request(path,{method,value,origin,headers:{'cf-connecting-ip':testIp}});}
 async function check(name,fn){await fn();passed++;console.log('PASS '+name);}
 await check('catálogo público, precios sin inventar y teléfono comercial',async()=>{const r=await request('catalog');assert.equal(r.status,200);assert.equal(r.data.vehicles.length,5);assert.equal(r.data.settings.whatsapp,'595981304731');assert(r.data.vehicles.every(v=>v.price===null&&v.availability==='consult'));assert(!JSON.stringify(r.data).includes('apiSecret'));});
-await check('administración bloqueada sin sesión',async()=>{assert.equal((await request('admin/data')).status,403);assert.equal((await request('admin/settings',{method:'PUT',value:{}})).status,403);});
-const signin=await fetch(base+'/signin-with-chatgpt?return_to=/admin',{redirect:'manual'});
-cookie=signin.headers.getSetCookie().map(c=>c.split(';')[0]).join('; ');
-assert(cookie,'El preview debe permitir la identidad local de pruebas.');
-let session=await request('session',{auth:true});
-if(session.data.needsSetup){const vars=await readFile('.dev.vars','utf8');const token=vars.match(/^ADMIN_SETUP_TOKEN=(.+)$/m)?.[1];const r=await request('setup',{method:'POST',value:{token},auth:true});assert.equal(r.status,200,JSON.stringify(r.data));}
-await check('activación y autorización administrativa',async()=>{assert.equal((await request('session',{auth:true})).data.isAdmin,true);assert.equal((await request('setup',{method:'POST',value:{token:'invalid'},auth:true})).status,409);});
+await check('administración bloqueada sin sesión',async()=>{assert.equal((await request('admin/data')).status,401);assert.equal((await request('admin/settings',{method:'PUT',value:{}})).status,401);});
+const logged=await signed.request('auth/login',{method:'POST',value:initial});assert.equal(logged.status,200,JSON.stringify(logged.data));
+if(logged.data.mustChangePassword){changedPassword='Frase local de integración '+Date.now();const updated=await signed.request('auth/account',{method:'PUT',value:{currentPassword:initial.password,newPassword:changedPassword}});assert.equal(updated.status,200);}
+await check('sesión con usuario y contraseña habilita el panel',async()=>{assert.equal((await request('session',{auth:true})).data.isAdmin,true);assert.equal((await request('setup',{method:'POST',value:{token:'invalid'},auth:true})).status,404);});
 let current=(await request('admin/data',{auth:true})).data;
 const original=current.vehicles.find(v=>v.id==='honda-s2000');
 await check('rechaza validación inválida y origen ajeno',async()=>{assert.equal((await request('admin/vehicles/honda-s2000',{method:'PUT',auth:true,value:{...original,price:-100}})).status,400);assert.equal((await request('admin/settings',{method:'PUT',auth:true,origin:'https://untrusted.test',value:current.settings})).status,403);});
@@ -27,4 +23,6 @@ let inquiry;
 await check('formulario con consentimiento y antispam',async()=>{const input={name:'Prueba de integración',phone:'+595981000000',message:'Consulta local de prueba; debe eliminarse al terminar.',vehicleId:'honda-s2000',type:'vehicle',consent:false,website:''};assert.equal((await request('inquiries',{method:'POST',value:input})).status,400);assert.equal((await request('inquiries',{method:'POST',value:{...input,consent:true,website:'spam'}})).status,400);const r=await request('inquiries',{method:'POST',value:{...input,consent:true}});assert.equal(r.status,201,JSON.stringify(r.data));const leads=(await request('admin/data',{auth:true})).data.inquiries;inquiry=leads.find(q=>q.id===r.data.id);assert.equal(inquiry.status,'new');});
 await check('seguimiento de consultas y eliminación de datos de prueba',async()=>{const patch=await request('admin/inquiries/'+inquiry.id,{method:'PATCH',auth:true,value:{status:'contacted',_etag:inquiry._etag}});assert.equal(patch.status,200);const deleted=await request('admin/inquiries/'+inquiry.id,{method:'DELETE',auth:true,value:{_etag:patch.data._etag}});assert.equal(deleted.status,200);assert(!(await request('admin/data',{auth:true})).data.inquiries.some(q=>q.id===inquiry.id));});
 await check('exportación e importación validadas sin secretos',async()=>{const r=await request('admin/backup',{auth:true});assert.equal(r.status,200);assert.equal(r.data.schemaVersion,1);assert(!JSON.stringify(r.data).includes('apiSecret'));assert(!JSON.stringify(r.data).includes('ADMIN_SETUP_TOKEN'));const invalid=structuredClone(r.data);invalid.vehicles[0].year=-1;assert.equal((await request('admin/restore',{method:'POST',auth:true,value:invalid})).status,400);const restored=await request('admin/restore',{method:'POST',auth:true,value:r.data});assert.equal(restored.status,200,JSON.stringify(restored.data));});
+if(changedPassword){const reset=await signed.request('auth/account',{method:'PUT',value:{currentPassword:changedPassword,newPassword:initial.password}});assert.equal(reset.status,200);}
+await signed.request('auth/logout',{method:'POST',value:{}});
 console.log(`\n${passed} verificaciones de integración completadas.`);

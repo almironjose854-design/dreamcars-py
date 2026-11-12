@@ -12,3 +12,4 @@ export type Settings = {
   logo:string; heroImage:string;
 };
 export type Inquiry = {id:string;name:string;phone:string;message:string;vehicleId:string;type:string;consent:boolean;status:"new"|"contacted"|"closed";createdAt:string};
+export type AdminSessionInfo = {isAdmin:boolean;user:{username:string;displayName:string}|null;mustChangePassword:boolean;csrfToken:string|null;expiresAt:number|null};

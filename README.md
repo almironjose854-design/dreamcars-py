@@ -10,7 +10,7 @@ Web de catálogo y administración para Dream Cars PY, Luque, Paraguay. Construi
 - Panel `/admin`: inventario, borradores, publicados, archivados, vendidos, destacados, consultas, datos del negocio y respaldos.
 - JSON persistentes privados en R2, control de conflictos por ETag y copia anterior en cada edición.
 - Cloudinary: credenciales cifradas con AES-GCM, firma generada en servidor, subida directa desde el navegador y migración de fotos originales.
-- Inicio de sesión con ChatGPT y activación de una sola cuenta administradora mediante código privado.
+- Inicio de sesión propio con usuario y contraseña, sesiones revocables y gestión de credenciales desde Mi cuenta.
 
 ## Iniciar localmente
 
@@ -23,17 +23,25 @@ npm run dev
 
 Abrir la dirección impresa por el servidor, normalmente `http://127.0.0.1:5173`.
 
-Las claves locales ya se generaron en `.dev.vars`. El archivo ignorado `ADMIN-ACCESO.local.txt` contiene el código de activación de producción. No publicar ni compartir esos archivos. La identidad de prueba local `seedy@sites.test` pertenece únicamente al simulador del starter y no está incluida en producción.
+Las claves locales ya se generaron en `.dev.vars`. El archivo ignorado `ADMIN-ACCESO.local.txt` contiene el usuario y la contraseña inicial de producción. No publicar ni compartir esos archivos. La identidad de prueba local `seedy@sites.test` pertenece únicamente al simulador del starter y no está incluida en producción.
 
 ## Primer acceso en producción
 
-1. Abrir la URL publicada y agregar `/admin`.
-2. Elegir “Ingresar con ChatGPT”.
-3. Ingresar el código de `ADMIN-ACCESO.local.txt` una sola vez. Esa cuenta queda autorizada.
-4. Revisar los vehículos: las fotos iniciales son reales, pero años, kilometrajes, precios, ciertas versiones y disponibilidad no pudieron verificarse. No se inventaron esos valores.
-5. Conectar Cloudinary y migrar fotos originales.
+1. Abrir `/admin` e ingresar con el usuario y la contraseña inicial del archivo privado `ADMIN-ACCESO.local.txt`.
+2. Elegir una contraseña personal de al menos 14 caracteres en el primer acceso. La clave inicial deja de funcionar después de ese cambio.
+3. Administrar el usuario, el nombre para mostrar y la contraseña desde **Mi cuenta**. Cada cambio revoca las demás sesiones.
+4. Revisar precios, año, kilometraje y disponibilidad de las fichas que siguen pendientes.
+5. Conectar Cloudinary y migrar las imágenes originales si todavía no se hizo.
 
-El inicio público no necesita cuenta. Todas las rutas de escritura administrativa verifican la identidad en el servidor. Si cambia la cuenta administradora, el propietario del hosting debe gestionar el registro privado `private/admin.json`; no existe una recuperación pública que permita apropiarse del panel.
+No se necesita cuenta de ChatGPT para ingresar. La implementación anterior queda reemplazada: sus cabeceras y registros de identidad no conceden acceso al nuevo panel. El catálogo, los vehículos y las consultas existentes se conservan.
+
+### Protección del acceso
+
+La contraseña se deriva mediante PBKDF2-HMAC-SHA256 con 100.000 iteraciones, sal aleatoria y una prederivación HMAC con un secreto independiente del servidor. El límite de iteraciones corresponde al máximo del WebCrypto de Cloudflare Workers. El JSON de la cuenta guarda solo el verificador; la contraseña inicial se entrega únicamente en el archivo local ignorado por Git. El secreto `ADMIN_AUTH_SECRET` debe conservarse: cambiarlo invalida los verificadores existentes.
+
+La cookie es HttpOnly, SameSite=Strict y Secure en HTTPS, con prefijo __Host-. Las sesiones duran doce horas o siete días si se marca mantener sesión. Se guardan únicamente huellas de los tokens en R2, con vencimiento y versión de credenciales. Las escrituras requieren mismo origen y token CSRF. El servidor permite ocho intentos de acceso por conexión en una ventana de quince minutos. Cerrar sesión elimina su registro; **Cerrar todas las sesiones** revoca todas las versiones anteriores.
+
+La cuenta inicial se configura con el secreto `ADMIN_BOOTSTRAP_ACCOUNT`. Se materializa en R2 después del primer ingreso correcto. Modificar esa variable no reemplaza una cuenta que ya esté guardada en R2. Si el administrador olvida su contraseña, la recuperación requiere acceso del propietario al hosting; no se simula un correo de recuperación que no está configurado.
 
 ## Conectar Cloudinary
 
@@ -52,7 +60,9 @@ settings.json
 vehicles/<id>.json
 inquiries/<id>.json
 backups/<ruta-original>/<fecha>-<uuid>.json
-private/admin.json
+private/auth/account.json
+private/auth/sessions/<huella>.json
+private/auth/limits/<huella>/<ventana>-<cupo>.json
 private/cloudinary.json
 private/limits/<huella>/<ventana>-<cupo>.json
 ```
@@ -69,7 +79,7 @@ La publicación preparada utiliza **Sites**, que ejecuta el proyecto sobre Cloud
 
 Alternativa gratuita investigada: **Cloudflare Workers Free**, con 100.000 solicitudes diarias dentro de sus límites. R2 Standard incluye 10 GB-mes, un millón de operaciones de clase A y diez millones de clase B al mes. Cloudinary Free ofrece 25 créditos mensuales y no requiere tarjeta. Fuera de las cuotas aplican las condiciones del proveedor; no equivale a alojamiento ilimitado. Activar R2 directamente en una cuenta Cloudflare requiere completar su proceso de suscripción y puede pedir datos de facturación.
 
-Importante para una migración independiente de Sites: este proyecto usa la autenticación proporcionada por Sites. Un despliegue directo con Wrangler requiere configurar un proveedor de identidad confiable y adaptar el guard de autenticación; no se deben confiar cabeceras de identidad recibidas directamente de Internet. La publicación mediante Sites ya incluye ese servicio.
+La autenticación propia ya no depende de la identidad de Sites. Para migrar a una cuenta independiente de Cloudflare, hay que configurar el bucket R2 y los mismos secretos de ejecución, además de importar los JSON privados de cuenta y sesiones cuando corresponda. Nunca se deben confiar cabeceras de identidad recibidas de Internet.
 
 Fuentes oficiales consultadas el 11/11/2026:
 
@@ -85,12 +95,22 @@ Fuentes oficiales consultadas el 11/11/2026:
 node node_modules/typescript/bin/tsc --noEmit
 npm run build
 # Con el servidor de desarrollo iniciado:
+node tests/auth.mjs
 node tests/integration.mjs
 ```
 
-Las diez pruebas de integración comprueban permisos, activación, validación, bloqueo de origen ajeno, escritura de JSON, conflictos, visibilidad de estados, exigencia de Cloudinary, consultas, eliminación y respaldos. Solo se ejecutan contra localhost. La conexión/subida real a Cloudinary requiere las credenciales del negocio y no puede validarse antes de conectarlas.
+Las once pruebas de autenticación cubren el login real, errores uniformes, cookies privadas, origen, CSRF, clave personal obligatoria, longitud mínima, revocación, cierre de sesión, manipulación de cookies y límite persistente de intentos. Las diez pruebas de integración cubren catálogo, permisos, edición JSON, conflictos, visibilidad de estados, Cloudinary pendiente, consultas, eliminación y respaldos. Solo se permiten pruebas que escriben datos contra localhost.
 
-Se verificaron en navegador el catálogo, búsqueda por marca, favoritos, comparación, panel, editor, formulario real local, ficha, menú móvil, imágenes y ausencia de desbordamiento a 390 y 1440 píxeles.
+La conexión/subida real a Cloudinary sigue requiriendo las credenciales del negocio. Se conserva la integración existente y no se cambian sus secretos.
+
+La revisión visual incluye login, mensajes de error, mostrar/ocultar contraseña, panel, filtros, confirmación de cambios sin guardar, secciones de cuenta y adaptación a escritorio y móvil. También se mejoraron la carga del catálogo desde el servidor, los títulos de fichas actualizados, el vehículo destacado de portada y la legibilidad general.
+
+Fuentes de implementación:
+
+- [Cloudflare Web Crypto](https://developers.cloudflare.com/workers/runtime-apis/web-crypto/)
+- [Límite de PBKDF2 documentado por Cloudflare](https://github.com/cloudflare/workerd/issues/1346)
+- [OWASP: almacenamiento de contraseñas](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)
+- [OWASP: sesiones](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)
 
 ## Origen del contenido
 

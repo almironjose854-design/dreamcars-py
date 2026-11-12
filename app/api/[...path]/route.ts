@@ -1,6 +1,5 @@
-import {env} from "cloudflare:workers";
-import {getChatGPTUser} from "../../chatgpt-auth";
-import {administrator,ApiError,bucket,listDocs,readDoc,settings,vehicles,writeDoc} from "../../../lib/store";
+import {ApiError,bucket,listDocs,readDoc,settings,vehicles,writeDoc} from "../../../lib/store";
+import {login,logout,requireAdmin,revokeSessions,sessionInfo,updateAccount} from "../../../lib/admin-auth";
 import {credentials,saveCredentials,signature,verifyCredentials} from "../../../lib/cloudinary";
 import {vehicleSchema,settingsSchema,inquirySchema} from "../../../lib/validation";
 import type {Inquiry,Vehicle} from "../../../lib/types";
@@ -18,7 +17,8 @@ async function body(req:Request){
   const reader=req.body?.getReader();if(!reader)throw new ApiError(400,"Faltan los datos JSON.");
   const decoder=new TextDecoder();let size=0,raw="";
   while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>2000000){await reader.cancel();throw new ApiError(413,"El archivo supera el límite de 2 MB.");}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();
-  try{return JSON.parse(raw);}catch{throw new ApiError(400,"El JSON no es válido.");}
+  let parsed;try{parsed=JSON.parse(raw);}catch{throw new ApiError(400,"El JSON no es válido.");}
+  if(!parsed||typeof parsed!=="object"||Array.isArray(parsed))throw new ApiError(400,"Enviá un objeto JSON válido.");return parsed;
 }
 async function inquiryLimit(req:Request){
   const ip=req.headers.get("cf-connecting-ip")||"local-preview";
@@ -31,24 +31,18 @@ async function inquiryLimit(req:Request){
   }
   throw new ApiError(429,"Ya recibimos varias consultas tuyas. Esperá unos minutos o escribinos por WhatsApp.");
 }
-async function requireAdmin(){const user=await getChatGPTUser();const admin=await administrator();if(!user||user.userId!==admin.data?.userId)throw new ApiError(403,"Ingresá con la cuenta administradora.");return user;}
-function origin(req:Request){const o=req.headers.get("origin");if(o&&o!==new URL(req.url).origin)throw new ApiError(403,"Origen no permitido.");if(req.headers.get("sec-fetch-site")==="cross-site")throw new ApiError(403,"Solicitud no permitida.");}
-async function safeEqual(a:string,b:string){const enc=new TextEncoder();const aa=new Uint8Array(await crypto.subtle.digest("SHA-256",enc.encode(a)));const bb=new Uint8Array(await crypto.subtle.digest("SHA-256",enc.encode(b)));return aa.reduce((v,x,i)=>v|(x^bb[i]),0)===0;}
+function origin(req:Request){const o=req.headers.get("origin");if(o!==new URL(req.url).origin)throw new ApiError(403,"Origen no permitido.");if(req.headers.get("sec-fetch-site")==="cross-site")throw new ApiError(403,"Solicitud no permitida.");}
+function authResponse(result:unknown,cookie:string){return Response.json(result,{headers:{"Cache-Control":"no-store","Set-Cookie":cookie,"X-Content-Type-Options":"nosniff"}});}
 async function handle(req:Request){
   try{
     const path=new URL(req.url).pathname.replace(/^\/api\//,"");const method=req.method;
     if(method!=="GET")origin(req);
     if(path==="catalog"&&method==="GET")return json({settings:(await settings()).data,vehicles:(await vehicles()).filter(v=>v.status==="published").map(({_etag,...v})=>v)});
-    if(path==="session"&&method==="GET"){
-      const user=await getChatGPTUser();const admin=await administrator();
-      return json({user:user?{email:user.email,displayName:user.displayName}:null,isAdmin:!!user&&user.userId===admin.data?.userId,needsSetup:!admin.data});
-    }
-    if(path==="setup"&&method==="POST"){
-      rate(req,5);const user=await getChatGPTUser();if(!user)throw new ApiError(401,"Iniciá sesión primero.");
-      const old=await administrator();if(old.data)throw new ApiError(409,"El administrador ya fue configurado.");
-      const input=await body(req);if(!env.ADMIN_SETUP_TOKEN||typeof input.token!=="string"||!await safeEqual(input.token,env.ADMIN_SETUP_TOKEN))throw new ApiError(403,"El código de activación no es correcto.");
-      await writeDoc("private/admin.json",{userId:user.userId,email:user.email},null,false);return json({ok:true});
-    }
+    if(path==="session"&&method==="GET")return json(await sessionInfo(req));
+    if(path==="auth/login"&&method==="POST"){const data=await login(req,await body(req));return authResponse(data.result,data.cookie);}
+    if(path==="auth/logout"&&method==="POST")return authResponse({ok:true},await logout(req));
+    if(path==="auth/account"&&method==="PUT"){const data=await updateAccount(req,await body(req));return authResponse(data.result,data.cookie);}
+    if(path==="auth/revoke"&&method==="POST")return authResponse({ok:true},await revokeSessions(req));
     if(path==="inquiries"&&method==="POST"){
       rate(req,5);const data=inquirySchema.parse(await body(req));await inquiryLimit(req);
       if(data.vehicleId&&!(await vehicles()).some(v=>v.id===data.vehicleId&&v.status==="published"))throw new ApiError(400,"El vehículo ya no está publicado.");
@@ -56,7 +50,7 @@ async function handle(req:Request){
       const record:Inquiry={...clean,id,status:"new",createdAt:new Date().toISOString()};await writeDoc(`inquiries/${id}.json`,record,null,false);return json({ok:true,id},201);
     }
     if(path.startsWith("admin/")){
-      await requireAdmin();
+      await requireAdmin(req);
       if(path==="admin/data"&&method==="GET"){
         const config=await settings();const cloud=await credentials();
         return json({vehicles:await vehicles(),settings:{...config.data,_etag:config.etag},inquiries:(await listDocs<Inquiry>("inquiries/")).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)),cloudinary:{configured:!!cloud,cloudName:cloud?.cloudName??""}});
