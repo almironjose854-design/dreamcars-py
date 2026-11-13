@@ -9,7 +9,7 @@ export type Vehicle = {
 export type Settings = {
   name:string; tagline:string; address:string; city:string; whatsapp:string;
   instagram:string; email:string; hours:string; about:string;
-  logo:string; heroImage:string;
+  logo:string; heroImage:string; exchangeRate?:number;
 };
 export type Inquiry = {
   id: string;
@@ -23,4 +23,5 @@ export type Inquiry = {
   notes?: string;
   createdAt: string;
 };
+export type VehicleMetrics = Record<string, { views: number; whatsappClicks: number; updatedAt: string }>;
 export type AdminSessionInfo = {isAdmin:boolean;user:{username:string;displayName:string}|null;mustChangePassword:boolean;csrfToken:string|null;expiresAt:number|null};

@@ -54,7 +54,7 @@ export async function requireAdmin(req: Request, allowInitial = false) {
   return auth;
 }
 async function loginQuota(req: Request) {
-  const ip = req.headers.get("cf-connecting-ip") || "local-preview";
+  const ip = req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local-preview";
   const fingerprint = await digest(secret() + ":login:" + ip);
   const window = Math.floor(Date.now() / 900000), prefix = `private/auth/limits/${fingerprint}/`;
   const old = await bucket().list({ prefix });

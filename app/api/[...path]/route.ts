@@ -1,4 +1,4 @@
-import {ApiError,bucket,listDocs,readDoc,settings,vehicles,writeDoc} from "../../../lib/store";
+import {ApiError,bucket,deleteVehicle,listDocs,metrics,readDoc,recordMetric,settings,vehicles,writeDoc} from "../../../lib/store";
 import {login,logout,requireAdmin,revokeSessions,sessionInfo,updateAccount} from "../../../lib/admin-auth";
 import {credentials,saveCredentials,signature,verifyCredentials} from "../../../lib/cloudinary";
 import {vehicleSchema,settingsSchema,inquirySchema} from "../../../lib/validation";
@@ -6,22 +6,27 @@ import type {Inquiry,Vehicle} from "../../../lib/types";
 export const dynamic="force-dynamic";
 const json=(value:unknown,status=200)=>Response.json(value,{status,headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
 const attempts=new Map<string,{count:number;expires:number}>();
+
+function clientIp(req:Request){
+  return req.headers.get("cf-connecting-ip")||req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()||"local-preview";
+}
+
 function rate(request:Request,limit:number){
-  const key=(request.headers.get("cf-connecting-ip")||"local")+new URL(request.url).pathname;
+  const key=clientIp(request)+new URL(request.url).pathname;
   const now=Date.now();if(attempts.size>2000)for(const [k,v]of attempts)if(v.expires<now)attempts.delete(k);
   const a=attempts.get(key);if(a&&a.expires>now){if(a.count>=limit)throw new ApiError(429,"Demasiados intentos. Volvé a intentar en unos minutos.");a.count++;}else attempts.set(key,{count:1,expires:now+600000});
 }
 async function body(req:Request){
   if(!req.headers.get("content-type")?.includes("application/json"))throw new ApiError(415,"Enviá datos JSON.");
-  if(Number(req.headers.get("content-length"))>2000000)throw new ApiError(413,"El archivo supera el límite de 2 MB.");
+  if(Number(req.headers.get("content-length"))>6000000)throw new ApiError(413,"El archivo supera el límite permitido.");
   const reader=req.body?.getReader();if(!reader)throw new ApiError(400,"Faltan los datos JSON.");
   const decoder=new TextDecoder();let size=0,raw="";
-  while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>2000000){await reader.cancel();throw new ApiError(413,"El archivo supera el límite de 2 MB.");}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();
+  while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>6000000){await reader.cancel();throw new ApiError(413,"El archivo supera el límite permitido.");}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();
   let parsed;try{parsed=JSON.parse(raw);}catch{throw new ApiError(400,"El JSON no es válido.");}
   if(!parsed||typeof parsed!=="object"||Array.isArray(parsed))throw new ApiError(400,"Enviá un objeto JSON válido.");return parsed;
 }
 async function inquiryLimit(req:Request){
-  const ip=req.headers.get("cf-connecting-ip")||"local-preview";
+  const ip=clientIp(req);
   const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(ip));
   const hash=[...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,"0")).join("");
   const window=Math.floor(Date.now()/600000),prefix=`private/limits/${hash}/`;
@@ -46,6 +51,7 @@ function origin(req:Request){
   if(req.headers.get("sec-fetch-site")==="cross-site")throw new ApiError(403,"Solicitud no permitida.");
 }
 function authResponse(result:unknown,cookie:string){return Response.json(result,{headers:{"Cache-Control":"no-store","Set-Cookie":cookie,"X-Content-Type-Options":"nosniff"}});}
+
 async function handle(req:Request){
   try{
     const path=new URL(req.url).pathname.replace(/^\/api\//,"");const method=req.method;
@@ -56,6 +62,31 @@ async function handle(req:Request){
     if(path==="auth/logout"&&method==="POST")return authResponse({ok:true},await logout(req));
     if(path==="auth/account"&&method==="PUT"){const data=await updateAccount(req,await body(req));return authResponse(data.result,data.cookie);}
     if(path==="auth/revoke"&&method==="POST")return authResponse({ok:true},await revokeSessions(req));
+
+    const mediaMatch=path.match(/^media\/([a-zA-Z0-9._-]{1,100})$/);
+    if(mediaMatch&&method==="GET"){
+      const obj=await bucket().get(`uploads/${mediaMatch[1]}`);
+      if(!obj)throw new ApiError(404,"Imagen no encontrada.");
+      return new Response(await obj.arrayBuffer(),{
+        headers:{
+          "Content-Type":obj.httpMetadata?.contentType||"image/webp",
+          "Cache-Control":"public, max-age=31536000, immutable",
+          "X-Content-Type-Options":"nosniff"
+        }
+      });
+    }
+
+    if(path==="metrics"&&method==="POST"){
+      rate(req,60);
+      const input=await body(req);
+      const vehicleId=typeof input.vehicleId==="string"?input.vehicleId.trim().slice(0,80):"";
+      const event=input.event==="whatsapp"?"whatsapp":input.event==="view"?"view":null;
+      if(!vehicleId||!event)throw new ApiError(400,"Datos de métrica inválidos.");
+      if(!(await vehicles()).some(v=>v.id===vehicleId))throw new ApiError(404,"Vehículo no encontrado.");
+      const updated=await recordMetric(vehicleId,event);
+      return json({ok:true,metrics:updated});
+    }
+
     if(path==="inquiries"&&method==="POST"){
       rate(req,5);const data=inquirySchema.parse(await body(req));await inquiryLimit(req);
       if(data.vehicleId&&!(await vehicles()).some(v=>v.id===data.vehicleId&&v.status==="published"))throw new ApiError(400,"El vehículo ya no está publicado.");
@@ -65,15 +96,61 @@ async function handle(req:Request){
     if(path.startsWith("admin/")){
       await requireAdmin(req);
       if(path==="admin/data"&&method==="GET"){
-        const config=await settings();const cloud=await credentials();
-        return json({vehicles:await vehicles(),settings:{...config.data,_etag:config.etag},inquiries:(await listDocs<Inquiry>("inquiries/")).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)),cloudinary:{configured:!!cloud,cloudName:cloud?.cloudName??""}});
+        const [config,cloud,allVehicles,allInquiries,allMetrics]=await Promise.all([
+          settings(),
+          credentials(),
+          vehicles(),
+          listDocs<Inquiry>("inquiries/"),
+          metrics()
+        ]);
+        return json({
+          vehicles:allVehicles,
+          settings:{...config.data,_etag:config.etag},
+          inquiries:allInquiries.sort((a,b)=>b.createdAt.localeCompare(a.createdAt)),
+          metrics:allMetrics,
+          cloudinary:{configured:!!cloud,cloudName:cloud?.cloudName??""}
+        });
+      }
+      if(path==="admin/upload-local"&&method==="POST"){
+        rate(req,60);
+        const input=await body(req);
+        if(typeof input.dataUrl!=="string")throw new ApiError(400,"Imagen inválida.");
+        const matchData=input.dataUrl.match(/^data:(image\/(?:jpeg|png|webp|avif|gif));base64,([A-Za-z0-9+/=]+)$/);
+        if(!matchData)throw new ApiError(400,"Formato de imagen no admitido.");
+        const mime=matchData[1];
+        const ext=mime==="image/webp"?"webp":mime==="image/png"?"png":mime==="image/avif"?"avif":mime==="image/gif"?"gif":"jpg";
+        const binaryStr=atob(matchData[2]);
+        const bytes=new Uint8Array(binaryStr.length);
+        for(let i=0;i<binaryStr.length;i++)bytes[i]=binaryStr.charCodeAt(i);
+        if(bytes.byteLength>5*1024*1024)throw new ApiError(413,"La imagen optimizada supera los 5 MB.");
+        const fileId=`${crypto.randomUUID()}.${ext}`;
+        await bucket().put(`uploads/${fileId}`,bytes,{httpMetadata:{contentType:mime}});
+        return json({url:`/api/media/${fileId}`,publicId:`local-${fileId}`});
       }
       const match=path.match(/^admin\/vehicles\/([a-z0-9-]{1,80})$/);
       if(match&&method==="PUT"){
         const input=await body(req);const item=vehicleSchema.parse({...input,id:match[1],updatedAt:new Date().toISOString()});
         const old=await readDoc<Vehicle|null>(`vehicles/${match[1]}.json`,null);if(old.etag!==(input._etag??null))throw new ApiError(409,"La ficha cambió. Actualizá antes de guardar.");
-        const cloud=await credentials();for(const img of item.images){if(img.url.startsWith("/media/")){if(!(await vehicles()).some(v=>v.images.some(i=>i.url===img.url)))throw new ApiError(400,"Elegí una foto subida a Cloudinary.");}else if(!cloud||!img.url.startsWith(`https://res.cloudinary.com/${cloud.cloudName}/image/upload/`))throw new ApiError(400,"Las fotos deben pertenecer a tu cuenta de Cloudinary.");}
+        const cloud=await credentials();
+        const currentVehicles=await vehicles();
+        for(const img of item.images){
+          if(img.url.startsWith("/api/media/")){
+            const fname=img.url.slice("/api/media/".length);
+            if(!(await bucket().head(`uploads/${fname}`)))throw new ApiError(400,"La foto subida no existe en el servidor.");
+          }else if(img.url.startsWith("/media/")){
+            if(!currentVehicles.some(v=>v.images.some(i=>i.url===img.url)))throw new ApiError(400,"Elegí una foto subida a Cloudinary.");
+          }else if(!cloud||!img.url.startsWith(`https://res.cloudinary.com/${cloud.cloudName}/image/upload/`)){
+            throw new ApiError(400,"Las fotos deben pertenecer a tu cuenta de Cloudinary.");
+          }
+        }
         const etag=await writeDoc(`vehicles/${match[1]}.json`,item,old.etag);return json({...item,_etag:etag});
+      }
+      if(match&&method==="DELETE"){
+        const input=await body(req);
+        const old=await readDoc<Vehicle|null>(`vehicles/${match[1]}.json`,null);
+        if(old.etag&&old.etag!==(input._etag??null))throw new ApiError(409,"La ficha cambió. Actualizá antes de eliminar.");
+        await deleteVehicle(match[1]);
+        return json({ok:true});
       }
       if(path==="admin/settings"&&method==="PUT"){
         const input=await body(req);const value=settingsSchema.parse(input);const old=await settings();if(old.etag!==(input._etag??null))throw new ApiError(409,"Los datos del negocio cambiaron. Actualizá antes de guardar.");

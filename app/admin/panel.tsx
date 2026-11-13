@@ -1,12 +1,12 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
 import {
-  ArrowLeft,ArrowRight,ArrowUpRight,CarFront,Check,Cloud,Download,ExternalLink,FileJson,
-  ImagePlus,LayoutDashboard,LoaderCircle,LogOut,MessageCircle,Pencil,Plus,Search,Settings2,
+  ArrowLeft,ArrowRight,ArrowUpRight,CarFront,Check,Cloud,Copy,Download,Eye,ExternalLink,FileJson,
+  ImagePlus,LayoutDashboard,LoaderCircle,LogOut,MessageCircle,Pencil,Plus,QrCode,Search,Settings2,
   ShieldCheck,Trash2,Upload,X,Archive,RotateCcw,RefreshCw,KeyRound,Star,Sparkles,FileSpreadsheet
 } from "lucide-react";
-import type {Vehicle,Settings,Inquiry,AdminSessionInfo} from "../../lib/types";
-import {api,availability,Instagram,Modal,money,whatsapp} from "../components";
+import type {Vehicle,Settings,Inquiry,AdminSessionInfo,VehicleMetrics} from "../../lib/types";
+import {api,availability,Instagram,Modal,money,QrSheetModal,REFERENCE_PYG_RATE,whatsapp} from "../components";
 import AdminLogin,{AccountForm} from "./login";
 import {brandLogo} from "../../lib/branding";
 
@@ -15,8 +15,23 @@ type AdminData={
   vehicles:Stored<Vehicle>[];
   settings:Stored<Settings>;
   inquiries:Stored<Inquiry>[];
+  metrics?:VehicleMetrics;
   cloudinary:{configured:boolean;cloudName:string};
 };
+
+function slugifyVehicle(brand:string,model:string,version:string,existingIds:Set<string>):string{
+  const base=`${brand}-${model}-${version}`
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-z0-9]+/g,"-")
+    .replace(/^-+|-+$/g,"")
+    .slice(0,65)||`vehiculo-${Date.now().toString(36)}`;
+  if(!existingIds.has(base))return base;
+  let counter=2;
+  while(existingIds.has(`${base}-${counter}`))counter++;
+  return `${base}-${counter}`;
+}
 
 const emptyVehicle=():Stored<Vehicle>=>({
   id:crypto.randomUUID(),
@@ -81,11 +96,27 @@ async function optimizeImageToWebp(file:Blob):Promise<Blob>{
   });
 }
 
-async function uploadImage(file:Blob,optimize=true):Promise<{url:string;publicId:string}>{
+function blobToDataUrl(blob:Blob):Promise<string>{
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>resolve(String(reader.result));
+    reader.onerror=()=>reject(new Error("No se pudo leer el archivo de imagen."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function uploadImage(file:Blob,optimize=true,useCloudinary=true):Promise<{url:string;publicId:string}>{
   if(file.size>10*1024*1024)throw new Error("Cada foto puede tener hasta 10 MB.");
   if(!["image/jpeg","image/png","image/webp","image/avif","image/gif"].includes(file.type))
     throw new Error("Usá imágenes JPG, PNG, WebP, AVIF o GIF.");
   const processed=optimize?await optimizeImageToWebp(file):file;
+  if(!useCloudinary){
+    const dataUrl=await blobToDataUrl(processed);
+    return await api("admin/upload-local",{
+      method:"POST",
+      body:JSON.stringify({dataUrl})
+    });
+  }
   const signed=await api("admin/upload-signature",{method:"POST",body:"{}"});
   const form=new FormData();
   form.set("file",processed);
@@ -137,6 +168,8 @@ export default function Admin(){
   const [busy,setBusy]=useState(false);
   const [editor,setEditor]=useState<Stored<Vehicle>|null>(null);
   const [flyerVehicle,setFlyerVehicle]=useState<Stored<Vehicle>|null>(null);
+  const [qrVehicle,setQrVehicle]=useState<Stored<Vehicle>|null>(null);
+  const [deleteTarget,setDeleteTarget]=useState<Stored<Vehicle>|null>(null);
   const [search,setSearch]=useState("");
   const [archiveFilter,setArchiveFilter]=useState(false);
   const [restore,setRestore]=useState<any>(null);
@@ -230,6 +263,7 @@ export default function Admin(){
     {id:"account",label:"Mi cuenta",icon:KeyRound}
   ];
 
+  const vehicleMetrics=data.metrics||{};
   const newLeads=data.inquiries.filter(q=>q.status==="new").length;
   const visibleVehicles=data.vehicles.filter(
     v=>
@@ -246,6 +280,16 @@ export default function Admin(){
   const pendingVehicles=data.vehicles.filter(
     v=>v.status!=="archived"&&[v.year,v.mileage,v.price].some(x=>x===null)
   ).length;
+
+  const topVehiclesByInterest=[...data.vehicles]
+    .filter(v=>v.status==="published")
+    .map(v=>({
+      vehicle:v,
+      views:vehicleMetrics[v.id]?.views||0,
+      wa:vehicleMetrics[v.id]?.whatsappClicks||0
+    }))
+    .sort((a,b)=>b.wa*3+b.views-(a.wa*3+a.views))
+    .slice(0,4);
 
   return (
     <div className="admin-shell admin-v2">
@@ -369,11 +413,11 @@ export default function Admin(){
                 <div className="setup-callout">
                   <Cloud size={30}/>
                   <div>
-                    <h3>Conectá Cloudinary para subir fotos.</h3>
-                    <p>El catálogo conserva las imágenes originales. Conectá tu cuenta y migrá las fotos desde Integraciones.</p>
+                    <h3>Almacenamiento local activo (Cloudinary opcional).</h3>
+                    <p>Podés subir fotos directamente al servidor o conectar tu cuenta de Cloudinary para alojarlas en la nube.</p>
                   </div>
                   <button className="button small" onClick={()=>setTab("integrations")}>
-                    Configurar <ArrowUpRight size={16}/>
+                    Configurar Cloudinary <ArrowUpRight size={16}/>
                   </button>
                 </div>
               )}
@@ -390,6 +434,28 @@ export default function Admin(){
                   </button>
                 </div>
               )}
+
+              <div className="admin-section-head">
+                <h2>Rendimiento de unidades (Vistas y clics a WhatsApp)</h2>
+                <button className="text-link" onClick={()=>setTab("vehicles")}>
+                  Ver inventario <ArrowUpRight size={16}/>
+                </button>
+              </div>
+              <div className="interest-grid">
+                {topVehiclesByInterest.map(({vehicle:v,views,wa})=>(
+                  <article className="interest-card" key={v.id}>
+                    <img src={v.images[0]?.url||"/media/logo.jpg"} alt=""/>
+                    <div>
+                      <small>{v.brand}</small>
+                      <strong>{v.model}</strong>
+                      <div className="interest-metrics">
+                        <span><Eye size={13}/> {views} vistas</span>
+                        <span><MessageCircle size={13}/> {wa} clics WA</span>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
 
               <div className="admin-section-head">
                 <h2>Últimas consultas</h2>
@@ -481,102 +547,145 @@ export default function Admin(){
               </div>
 
               <div className="admin-vehicles">
-                {visibleVehicles.map(v=>(
-                  <article key={v.id}>
-                    <img src={v.images[0]?.url||"/media/logo.jpg"} alt={`${v.brand} ${v.model}`}/>
-                    <div className="admin-vehicle-name">
-                      <small>{v.brand} {v.year?`· ${v.year}`:""}</small>
-                      <strong>{v.model}</strong>
-                      <span>{v.version}</span>
-                    </div>
-                    <div className="admin-quick-selects">
-                      <select
-                        aria-label={`Estado de publicación de ${v.model}`}
-                        className={`admin-inline-select status-${v.status}`}
-                        value={v.status}
-                        disabled={busy}
-                        onChange={e=>{
-                          const nextStatus=e.target.value as Vehicle["status"];
-                          task(async()=>{
-                            await api(`admin/vehicles/${v.id}`,{
-                              method:"PUT",
-                              body:JSON.stringify({...v,status:nextStatus})
+                {visibleVehicles.map(v=>{
+                  const m=vehicleMetrics[v.id];
+                  return (
+                    <article key={v.id}>
+                      <img src={v.images[0]?.url||"/media/logo.jpg"} alt={`${v.brand} ${v.model}`}/>
+                      <div className="admin-vehicle-name">
+                        <small>{v.brand} {v.year?`· ${v.year}`:""}</small>
+                        <strong>{v.model}</strong>
+                        <span>
+                          {v.version}
+                          {(m?.views||m?.whatsappClicks)?` · 👁 ${m?.views||0} · 💬 ${m?.whatsappClicks||0}`:""}
+                        </span>
+                      </div>
+                      <div className="admin-quick-selects">
+                        <select
+                          aria-label={`Estado de publicación de ${v.model}`}
+                          className={`admin-inline-select status-${v.status}`}
+                          value={v.status}
+                          disabled={busy}
+                          onChange={e=>{
+                            const nextStatus=e.target.value as Vehicle["status"];
+                            task(async()=>{
+                              await api(`admin/vehicles/${v.id}`,{
+                                method:"PUT",
+                                body:JSON.stringify({...v,status:nextStatus})
+                              });
+                            },`Estado de ${v.model} actualizado.`);
+                          }}
+                        >
+                          <option value="published">Publicado</option>
+                          <option value="draft">Borrador</option>
+                          <option value="archived">Archivado</option>
+                        </select>
+                        <select
+                          aria-label={`Disponibilidad de ${v.model}`}
+                          className="admin-inline-select"
+                          value={v.availability}
+                          disabled={busy}
+                          onChange={e=>{
+                            const nextAvail=e.target.value as Vehicle["availability"];
+                            task(async()=>{
+                              await api(`admin/vehicles/${v.id}`,{
+                                method:"PUT",
+                                body:JSON.stringify({...v,availability:nextAvail})
+                              });
+                            },`Disponibilidad de ${v.model} actualizada.`);
+                          }}
+                        >
+                          {Object.entries(availability).map(([key,label])=>(
+                            <option key={key} value={key}>{label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="admin-vehicle-price">{money(v.price,v.currency)}</div>
+                      <div className="admin-row-actions">
+                        <button
+                          className={v.featured?"icon-button featured-star active":"icon-button featured-star"}
+                          disabled={busy}
+                          title={v.featured?"Quitar de destacados":"Destacar en el catálogo"}
+                          aria-label={v.featured?`Quitar ${v.model} de destacados`:`Destacar ${v.model}`}
+                          aria-pressed={v.featured}
+                          onClick={()=>
+                            task(async()=>{
+                              await api(`admin/vehicles/${v.id}`,{
+                                method:"PUT",
+                                body:JSON.stringify({...v,featured:!v.featured})
+                              });
+                            },v.featured?`${v.model} ya no está destacado.`:`${v.model} marcado como destacado.`)
+                          }
+                        >
+                          <Star size={16} fill={v.featured?"currentColor":"none"}/>
+                        </button>
+                        <button
+                          className="icon-button"
+                          title="Ficha QR Imprimible (Parabrisas)"
+                          aria-label={`Ficha QR Imprimible para ${v.model}`}
+                          onClick={()=>setQrVehicle(v)}
+                        >
+                          <QrCode size={16}/>
+                        </button>
+                        <button
+                          className="icon-button"
+                          title="Generar Flyer para Instagram Story"
+                          aria-label={`Generar Flyer de Instagram para ${v.model}`}
+                          onClick={()=>setFlyerVehicle(v)}
+                        >
+                          <Instagram size={16}/>
+                        </button>
+                        <button
+                          className="icon-button"
+                          title="Duplicar vehículo"
+                          aria-label={`Duplicar ${v.model}`}
+                          onClick={()=>{
+                            const existingIds=new Set(data.vehicles.map(x=>x.id));
+                            const copyId=slugifyVehicle(v.brand,v.model,`${v.version}-copia`,existingIds);
+                            setEditor({
+                              ...v,
+                              id:copyId,
+                              version:v.version?`${v.version} (Copia)`:"Copia",
+                              status:"draft",
+                              featured:false,
+                              _etag:null
                             });
-                          },`Estado de ${v.model} actualizado.`);
-                        }}
-                      >
-                        <option value="published">Publicado</option>
-                        <option value="draft">Borrador</option>
-                        <option value="archived">Archivado</option>
-                      </select>
-                      <select
-                        aria-label={`Disponibilidad de ${v.model}`}
-                        className="admin-inline-select"
-                        value={v.availability}
-                        disabled={busy}
-                        onChange={e=>{
-                          const nextAvail=e.target.value as Vehicle["availability"];
-                          task(async()=>{
-                            await api(`admin/vehicles/${v.id}`,{
-                              method:"PUT",
-                              body:JSON.stringify({...v,availability:nextAvail})
-                            });
-                          },`Disponibilidad de ${v.model} actualizada.`);
-                        }}
-                      >
-                        {Object.entries(availability).map(([key,label])=>(
-                          <option key={key} value={key}>{label}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="admin-vehicle-price">{money(v.price,v.currency)}</div>
-                    <div className="admin-row-actions">
-                      <button
-                        className={v.featured?"icon-button featured-star active":"icon-button featured-star"}
-                        disabled={busy}
-                        title={v.featured?"Quitar de destacados":"Destacar en el catálogo"}
-                        aria-label={v.featured?`Quitar ${v.model} de destacados`:`Destacar ${v.model}`}
-                        aria-pressed={v.featured}
-                        onClick={()=>
-                          task(async()=>{
-                            await api(`admin/vehicles/${v.id}`,{
-                              method:"PUT",
-                              body:JSON.stringify({...v,featured:!v.featured})
-                            });
-                          },v.featured?`${v.model} ya no está destacado.`:`${v.model} marcado como destacado.`)
-                        }
-                      >
-                        <Star size={16} fill={v.featured?"currentColor":"none"}/>
-                      </button>
-                      <button
-                        className="icon-button"
-                        title="Generar Flyer para Instagram Story"
-                        aria-label={`Generar Flyer de Instagram para ${v.model}`}
-                        onClick={()=>setFlyerVehicle(v)}
-                      >
-                        <Instagram size={16}/>
-                      </button>
-                      <button className="icon-button" aria-label={`Editar ${v.model}`} onClick={()=>setEditor(v)}>
-                        <Pencil size={16}/>
-                      </button>
-                      <button
-                        className="icon-button"
-                        disabled={busy}
-                        aria-label={`${v.status==="archived"?"Restaurar":"Archivar"} ${v.model}`}
-                        onClick={()=>
-                          task(async()=>{
-                            await api(`admin/vehicles/${v.id}`,{
-                              method:"PUT",
-                              body:JSON.stringify({...v,status:v.status==="archived"?"draft":"archived"})
-                            });
-                          },v.status==="archived"?"Vehículo recuperado como borrador.":"Vehículo archivado. Podés recuperarlo desde Archivados.")
-                        }
-                      >
-                        {v.status==="archived"?<RotateCcw size={17}/>:<Archive size={17}/>}
-                      </button>
-                    </div>
-                  </article>
-                ))}
+                          }}
+                        >
+                          <Copy size={15}/>
+                        </button>
+                        <button className="icon-button" aria-label={`Editar ${v.model}`} onClick={()=>setEditor(v)}>
+                          <Pencil size={16}/>
+                        </button>
+                        <button
+                          className="icon-button"
+                          disabled={busy}
+                          title={v.status==="archived"?"Restaurar como borrador":"Archivar"}
+                          aria-label={`${v.status==="archived"?"Restaurar":"Archivar"} ${v.model}`}
+                          onClick={()=>
+                            task(async()=>{
+                              await api(`admin/vehicles/${v.id}`,{
+                                method:"PUT",
+                                body:JSON.stringify({...v,status:v.status==="archived"?"draft":"archived"})
+                              });
+                            },v.status==="archived"?"Vehículo recuperado como borrador.":"Vehículo archivado. Podés recuperarlo desde Archivados.")
+                          }
+                        >
+                          {v.status==="archived"?<RotateCcw size={17}/>:<Archive size={17}/>}
+                        </button>
+                        <button
+                          className="icon-button danger"
+                          disabled={busy}
+                          title="Eliminar vehículo definitivamente"
+                          aria-label={`Eliminar ${v.model}`}
+                          onClick={()=>setDeleteTarget(v)}
+                        >
+                          <Trash2 size={15}/>
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
 
               {visibleVehicles.length===0&&(
@@ -590,7 +699,7 @@ export default function Admin(){
                 </div>
               )}
               <p className="muted admin-hint">
-                Podés cambiar publicación, disponibilidad, destacado o generar un flyer de Instagram directamente desde cada fila.
+                Desde cada fila podés cambiar estado, disponibilidad, destacar (★), imprimir la hoja QR de parabrisas, crear una Story IG o duplicar la unidad.
               </p>
             </>
           )}
@@ -761,10 +870,10 @@ export default function Admin(){
                 <Cloud size={32}/>
                 <div>
                   <h2>Cloudinary</h2>
-                  <p>{data.cloudinary.configured?`Cuenta conectada: ${data.cloudinary.cloudName}`:"Pendiente de conexión"}</p>
+                  <p>{data.cloudinary.configured?`Cuenta conectada: ${data.cloudinary.cloudName}`:"Opcional — usando almacenamiento directo del servidor"}</p>
                 </div>
                 <span className={data.cloudinary.configured?"connection-pill connected":"connection-pill"}>
-                  {data.cloudinary.configured?"Conectado":"Sin configurar"}
+                  {data.cloudinary.configured?"Conectado":"Modo local activo"}
                 </span>
               </div>
               <div className="integration-layout">
@@ -829,7 +938,7 @@ export default function Admin(){
                               if(!response.ok)throw new Error(`No se pudo leer ${img.url}`);
                               let blob=await response.blob();
                               if(!blob.type.startsWith("image/"))blob=new Blob([blob],{type:"image/jpeg"});
-                              const next=await uploadImage(blob,true);
+                              const next=await uploadImage(blob,true,true);
                               images.push(next);
                               changed=true;
                               migrated++;
@@ -898,7 +1007,7 @@ export default function Admin(){
                 <div>
                   <h3>Archivos reales. Almacenamiento persistente.</h3>
                   <p>
-                    Cada vehículo y consulta se guarda como un archivo .json en almacenamiento privado R2. Cada edición conserva una copia anterior. El catálogo usa los JSON iniciales del proyecto hasta que guardás cambios.
+                    Cada vehículo y consulta se guarda como un archivo .json en almacenamiento privado R2. Cada edición conserva hasta 10 copias anteriores. El catálogo usa los JSON iniciales del proyecto hasta que guardás cambios.
                   </p>
                 </div>
               </article>
@@ -913,8 +1022,12 @@ export default function Admin(){
           cloudinary={data.cloudinary.configured}
           onClose={()=>setEditor(null)}
           onOpenFlyer={v=>setFlyerVehicle(v)}
+          onOpenQr={v=>setQrVehicle(v)}
           onSave={async v=>{
-            await api(`admin/vehicles/${v.id}`,{method:"PUT",body:JSON.stringify(v)});
+            const isBrandNew=editor._etag===null&&!editor.brand;
+            const existingIds=new Set(data.vehicles.map(x=>x.id));
+            const finalId=isBrandNew?slugifyVehicle(v.brand,v.model,v.version,existingIds):v.id;
+            await api(`admin/vehicles/${finalId}`,{method:"PUT",body:JSON.stringify({...v,id:finalId})});
             await load();
             setEditor(null);
             setNotice("Ficha guardada. Los cambios ya están en el catálogo.");
@@ -928,6 +1041,43 @@ export default function Admin(){
           settings={data.settings}
           onClose={()=>setFlyerVehicle(null)}
         />
+      )}
+
+      {qrVehicle&&(
+        <QrSheetModal
+          vehicle={qrVehicle}
+          settings={data.settings}
+          onClose={()=>setQrVehicle(null)}
+        />
+      )}
+
+      {deleteTarget&&(
+        <Modal title="Eliminar vehículo definitivamente" onClose={()=>setDeleteTarget(null)}>
+          <p className="modal-description">
+            ¿Estás seguro de eliminar <strong>{deleteTarget.brand} {deleteTarget.model}</strong> ({deleteTarget.version}) de forma permanente? Si solo querés ocultarlo temporalmente del catálogo público, podés archivarlo.
+          </p>
+          <div style={{display:"flex",gap:"12px"}}>
+            <button type="button" className="button secondary" onClick={()=>setDeleteTarget(null)}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="button danger-button"
+              disabled={busy}
+              onClick={()=>
+                task(async()=>{
+                  await api(`admin/vehicles/${deleteTarget.id}`,{
+                    method:"DELETE",
+                    body:JSON.stringify({_etag:deleteTarget._etag})
+                  });
+                  setDeleteTarget(null);
+                },"Vehículo eliminado permanentemente.")
+              }
+            >
+              Eliminar vehículo <Trash2 size={16}/>
+            </button>
+          </div>
+        </Modal>
       )}
 
       {restore&&(
@@ -977,15 +1127,16 @@ export default function Admin(){
 }
 
 function SettingsForm({value,busy,onSave}:{value:Stored<Settings>;busy:boolean;onSave:(v:Stored<Settings>)=>void}){
-  const fields:[keyof Settings,string][]=[
+  const fields:[keyof Settings,string,string?][]=[
     ["name","Nombre del negocio"],
     ["tagline","Lema"],
     ["address","Dirección"],
     ["city","Ciudad y país"],
     ["whatsapp","WhatsApp (solo números, con código de país)"],
     ["instagram","Enlace de Instagram"],
-    ["email","Correo comercial (opcional)"],
+    ["email","Correo comercial (opcional)","email"],
     ["hours","Horarios / coordinación de visitas"],
+    ["exchangeRate","Cotización referencial 1 USD en PYG (Gs.)","number"],
     ["logo","URL del logo"],
     ["heroImage","URL de la imagen principal"]
   ];
@@ -996,14 +1147,24 @@ function SettingsForm({value,busy,onSave}:{value:Stored<Settings>;busy:boolean;o
       onSubmit={e=>{
         e.preventDefault();
         const fd=new FormData(e.currentTarget);
-        onSave({...value,...Object.fromEntries(fd)} as Stored<Settings>);
+        const raw=Object.fromEntries(fd);
+        onSave({
+          ...value,
+          ...raw,
+          exchangeRate:raw.exchangeRate?Number(raw.exchangeRate):REFERENCE_PYG_RATE
+        } as Stored<Settings>);
       }}
     >
       <div className="form-two">
-        {fields.map(([key,label])=>(
+        {fields.map(([key,label,type])=>(
           <label key={key}>
             {label}
-            <input name={key} type={key==="email"?"email":"text"} defaultValue={value[key]} required={key!=="email"}/>
+            <input
+              name={key}
+              type={type||"text"}
+              defaultValue={key==="exchangeRate"?(value.exchangeRate??REFERENCE_PYG_RATE):String(value[key]??"")}
+              required={key!=="email"&&key!=="exchangeRate"}
+            />
           </label>
         ))}
       </div>
@@ -1024,13 +1185,15 @@ function VehicleEditor({
   cloudinary,
   onClose,
   onSave,
-  onOpenFlyer
+  onOpenFlyer,
+  onOpenQr
 }:{
   initial:Stored<Vehicle>;
   cloudinary:boolean;
   onClose:()=>void;
   onSave:(v:Stored<Vehicle>)=>Promise<void>;
   onOpenFlyer:(v:Stored<Vehicle>)=>void;
+  onOpenQr:(v:Stored<Vehicle>)=>void;
 }){
   const [v,setV]=useState(initial);
   const [busy,setBusy]=useState(false);
@@ -1138,8 +1301,8 @@ function VehicleEditor({
             </select>
           </label>
           <label>
-            Publicación de Instagram (opcional)
-            <input type="url" value={v.sourceUrl} onChange={e=>set("sourceUrl",e.target.value)}/>
+            Enlace de publicación / Video (Instagram, YouTube, TikTok)
+            <input type="url" value={v.sourceUrl} onChange={e=>set("sourceUrl",e.target.value)} placeholder="https://..."/>
           </label>
         </div>
 
@@ -1168,14 +1331,14 @@ function VehicleEditor({
                 <input type="checkbox" checked={optimizeWebp} onChange={e=>setOptimizeWebp(e.target.checked)}/>
                 <span>Optimizar a WebP al subir</span>
               </label>
-              <label className={`button small secondary file-button ${!cloudinary?"disabled":""}`}>
+              <label className="button small secondary file-button">
                 <ImagePlus size={16}/>
                 {uploading?"Subiendo…":"Subir fotos"}
                 <input
                   type="file"
                   accept="image/jpeg,image/png,image/webp,image/avif,image/gif"
                   multiple
-                  disabled={!cloudinary||uploading||busy}
+                  disabled={uploading||busy}
                   onChange={async e=>{
                     const files=Array.from(e.target.files??[]);
                     if(files.length+v.images.length>20){
@@ -1186,7 +1349,7 @@ function VehicleEditor({
                     setError("");
                     try{
                       for(const f of files){
-                        const image=await uploadImage(f,optimizeWebp);
+                        const image=await uploadImage(f,optimizeWebp,cloudinary);
                         setDirty(true);
                         setV(prev=>({...prev,images:[...prev.images,image]}));
                       }
@@ -1201,7 +1364,11 @@ function VehicleEditor({
               </label>
             </div>
           </div>
-          {!cloudinary&&<p className="muted">Conectá Cloudinary desde el panel para subir imágenes.</p>}
+          {!cloudinary&&(
+            <p className="muted">
+              Subida directa al servidor habilitada. Si conectás Cloudinary en Integraciones, las nuevas fotos se alojarán en tu cuenta Cloudinary.
+            </p>
+          )}
           <div className="editor-images">
             {v.images.map((img,i)=>(
               <div
@@ -1276,9 +1443,14 @@ function VehicleEditor({
         <div className="editor-footer">
           <span className="editor-save-status">{dirty?"Cambios pendientes":"Ficha sin cambios"}</span>
           {v.images.length>0&&v.brand&&v.model&&(
-            <button type="button" className="button secondary small" onClick={()=>onOpenFlyer(v)}>
-              <Sparkles size={15}/> Crear Story IG
-            </button>
+            <>
+              <button type="button" className="button secondary small" onClick={()=>onOpenQr(v)}>
+                <QrCode size={15}/> Ficha QR
+              </button>
+              <button type="button" className="button secondary small" onClick={()=>onOpenFlyer(v)}>
+                <Sparkles size={15}/> Story IG
+              </button>
+            </>
           )}
           <button type="button" className="button secondary" onClick={requestClose} disabled={busy||uploading}>
             Cancelar

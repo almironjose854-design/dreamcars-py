@@ -1,9 +1,9 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
-import {ArrowLeft,ArrowUpRight,Calculator,Check,ChevronLeft,ChevronRight,Maximize2,MessageCircle,Share2,X,ZoomIn,ZoomOut} from "lucide-react";
+import {ArrowLeft,ArrowUpRight,Calculator,Calendar,Check,ChevronLeft,ChevronRight,Maximize2,MessageCircle,QrCode,Share2,X,ZoomIn,ZoomOut} from "lucide-react";
 import type {Vehicle,Settings} from "../lib/types";
 import seedSettings from "../data/settings.json";
-import {api,availability,ContactForm,convertMoney,Footer,Header,Modal,money,REFERENCE_PYG_RATE,whatsapp} from "./components";
+import {api,availability,ContactForm,convertMoney,Footer,Header,Modal,money,QrSheetModal,REFERENCE_PYG_RATE,trackVehicleMetric,whatsapp} from "./components";
 
 export default function VehicleDetail({
   id,
@@ -27,6 +27,8 @@ export default function VehicleDetail({
   const [lightbox,setLightbox]=useState(false);
   const [zoomed,setZoomed]=useState(false);
   const [contact,setContact]=useState(false);
+  const [visitModal,setVisitModal]=useState(false);
+  const [qrModal,setQrModal]=useState(false);
   const [shared,setShared]=useState(false);
   const [shareNotice,setShareNotice]=useState("");
 
@@ -38,6 +40,7 @@ export default function VehicleDetail({
   const [hasTradeIn,setHasTradeIn]=useState<boolean>(false);
 
   const touchStartX=useRef<number|null>(null);
+  const exchangeRate=settings.exchangeRate||REFERENCE_PYG_RATE;
 
   useEffect(()=>{
     if(hasSSR)return;
@@ -61,11 +64,14 @@ export default function VehicleDetail({
   },[id,hasSSR]);
 
   useEffect(()=>{
+    if(vehicle?.id){
+      trackVehicleMetric(vehicle.id,"view");
+    }
     if(vehicle?.price){
-      const usdVal=vehicle.currency==="PYG"?Math.round(vehicle.price/REFERENCE_PYG_RATE):vehicle.price;
+      const usdVal=vehicle.currency==="PYG"?Math.round(vehicle.price/exchangeRate):vehicle.price;
       setSimPriceUsd(usdVal);
     }
-  },[vehicle]);
+  },[vehicle?.id,vehicle?.price,vehicle?.currency,exchangeRate]);
 
   const totalImages=vehicle?.images.length??0;
   const prevPhoto=()=>{
@@ -188,7 +194,7 @@ export default function VehicleDetail({
                   <p className="detail-price">{money(vehicle.price,vehicle.currency)}</p>
                   {vehicle.price!==null&&(
                     <span className="detail-price-alt">
-                      Equivalente aprox.: {convertMoney(vehicle.price,vehicle.currency,vehicle.currency==="USD"?"PYG":"USD")}
+                      Equivalente aprox.: {convertMoney(vehicle.price,vehicle.currency,vehicle.currency==="USD"?"PYG":"USD",exchangeRate)}
                     </span>
                   )}
                 </div>
@@ -198,6 +204,7 @@ export default function VehicleDetail({
                   className="button"
                   target="_blank"
                   rel="noreferrer"
+                  onClick={()=>trackVehicleMetric(vehicle.id,"whatsapp")}
                   href={whatsapp(
                     settings.whatsapp,
                     `¡Hola, Dream Cars! Me interesa el ${vehicle.brand} ${vehicle.model} ${vehicle.version}. Quisiera confirmar precio, ficha técnica y disponibilidad. ${typeof window!=="undefined"?window.location.href:""}`
@@ -205,9 +212,14 @@ export default function VehicleDetail({
                 >
                   <MessageCircle size={19}/> Consultar por WhatsApp <ArrowUpRight size={18}/>
                 </a>
-                <button className="button secondary" onClick={()=>setContact(true)}>
-                  Dejar mis datos <ArrowUpRight size={17}/>
-                </button>
+                <div className="detail-secondary-actions">
+                  <button type="button" className="button secondary" onClick={()=>setVisitModal(true)}>
+                    <Calendar size={17}/> Agendar visita
+                  </button>
+                  <button type="button" className="button secondary" onClick={()=>setContact(true)}>
+                    Dejar mis datos <ArrowUpRight size={17}/>
+                  </button>
+                </div>
                 <button
                   type="button"
                   className="button secondary simulator-trigger"
@@ -221,7 +233,7 @@ export default function VehicleDetail({
                   <div className="delivery-simulator" role="region" aria-label="Simulador referencial de entrega">
                     <div className="simulator-head">
                       <strong>Simulador referencial de operación</strong>
-                      <span>1 USD ≈ {REFERENCE_PYG_RATE.toLocaleString("es-PY")} ₲</span>
+                      <span>1 USD ≈ {exchangeRate.toLocaleString("es-PY")} ₲</span>
                     </div>
                     {vehicle.price===null&&(
                       <label>
@@ -237,7 +249,7 @@ export default function VehicleDetail({
                       </label>
                     )}
                     <label>
-                      <span>Entrega inicial ({downPaymentPercent}%): <strong>{money(downPaymentUsd,"USD")}</strong> <small>({money(downPaymentUsd*REFERENCE_PYG_RATE,"PYG")})</small></span>
+                      <span>Entrega inicial ({downPaymentPercent}%): <strong>{money(downPaymentUsd,"USD")}</strong> <small>({money(downPaymentUsd*exchangeRate,"PYG")})</small></span>
                       <input
                         type="range"
                         min={10}
@@ -283,6 +295,7 @@ export default function VehicleDetail({
                       className="text-link"
                       target="_blank"
                       rel="noreferrer"
+                      onClick={()=>trackVehicleMetric(vehicle.id,"whatsapp")}
                       href={whatsapp(
                         settings.whatsapp,
                         `¡Hola, Dream Cars! Estuve viendo el ${vehicle.brand} ${vehicle.model} (${vehicle.version}) y armé esta propuesta referencial: entrega inicial de USD ${downPaymentUsd.toLocaleString("es-PY")} (${downPaymentPercent}%)${hasTradeIn?" + mi vehículo como parte de pago":""} y saldo en ${months} meses. ¿Podemos conversarlo?`
@@ -293,21 +306,30 @@ export default function VehicleDetail({
                   </div>
                 )}
 
-                <button
-                  className="share-link"
-                  onClick={async()=>{
-                    try{
-                      await navigator.clipboard.writeText(location.href);
-                      setShared(true);
-                    }catch{
-                      setShared(false);
-                      setShareNotice("Copiá el enlace desde la barra de direcciones para compartirlo.");
-                    }
-                  }}
-                >
-                  <Share2 size={15}/>
-                  {shared?"Enlace copiado":"Compartir esta leyenda"}
-                </button>
+                <div className="detail-utility-links">
+                  <button
+                    className="share-link"
+                    onClick={async()=>{
+                      try{
+                        await navigator.clipboard.writeText(location.href);
+                        setShared(true);
+                      }catch{
+                        setShared(false);
+                        setShareNotice("Copiá el enlace desde la barra de direcciones para compartirlo.");
+                      }
+                    }}
+                  >
+                    <Share2 size={15}/>
+                    {shared?"Enlace copiado":"Compartir esta leyenda"}
+                  </button>
+                  <button
+                    type="button"
+                    className="share-link"
+                    onClick={()=>setQrModal(true)}
+                  >
+                    <QrCode size={15}/> Ficha QR / Imprimir
+                  </button>
+                </div>
                 {shareNotice&&<p className="muted" role="status">{shareNotice}</p>}
               </div>
             </div>
@@ -347,7 +369,7 @@ export default function VehicleDetail({
               </p>
               {vehicle.sourceUrl&&(
                 <a className="text-link" href={vehicle.sourceUrl} target="_blank" rel="noreferrer">
-                  Ver publicación original en Instagram <ArrowUpRight size={16}/>
+                  Ver publicación original <ArrowUpRight size={16}/>
                 </a>
               )}
             </section>
@@ -481,6 +503,24 @@ export default function VehicleDetail({
         <Modal title={`Hablemos del ${vehicle.brand} ${vehicle.model}`} onClose={()=>setContact(false)}>
           <ContactForm vehicleId={vehicle.id} vehicleName={`${vehicle.brand} ${vehicle.model}`} defaultType="vehicle"/>
         </Modal>
+      )}
+
+      {visitModal&&vehicle&&(
+        <Modal title={`Agendar visita · ${vehicle.brand} ${vehicle.model}`} onClose={()=>setVisitModal(false)}>
+          <p className="modal-description">
+            Elegí el día y horario en que te gustaría acercarte al showroom en {settings.address} ({settings.city}) para conocer esta unidad en persona.
+          </p>
+          <ContactForm
+            vehicleId={vehicle.id}
+            vehicleName={`${vehicle.brand} ${vehicle.model}`}
+            defaultType="vehicle"
+            visitMode
+          />
+        </Modal>
+      )}
+
+      {qrModal&&vehicle&&(
+        <QrSheetModal vehicle={vehicle} settings={settings} onClose={()=>setQrModal(false)}/>
       )}
     </>
   );

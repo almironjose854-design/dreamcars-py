@@ -1,8 +1,9 @@
 "use client";
-import {useEffect,useRef,useState} from "react";
-import {ArrowUpRight,Menu,X,MessageCircle,ShieldCheck} from "lucide-react";
-import type {Settings} from "../lib/types";
+import {useEffect,useMemo,useRef,useState} from "react";
+import {ArrowUpRight,Menu,X,MessageCircle,ShieldCheck,Printer} from "lucide-react";
+import type {Settings,Vehicle} from "../lib/types";
 import {brandLogo} from "../lib/branding";
+import {generateQrMatrix} from "../lib/qr";
 
 export const REFERENCE_PYG_RATE = 7800;
 
@@ -13,14 +14,26 @@ export const money=(price:number|null,currency="USD")=>
     ?"Precio a consultar"
     :new Intl.NumberFormat("es-PY",{style:"currency",currency,maximumFractionDigits:0}).format(price);
 
-export const convertMoney=(price:number|null,fromCurrency:"USD"|"PYG"="USD",displayCurrency:"ORIGINAL"|"USD"|"PYG"="ORIGINAL")=>{
+export const convertMoney=(
+  price:number|null,
+  fromCurrency:"USD"|"PYG"="USD",
+  displayCurrency:"ORIGINAL"|"USD"|"PYG"="ORIGINAL",
+  rate:number=REFERENCE_PYG_RATE
+)=>{
   if(price===null)return "Precio a consultar";
+  const effectiveRate=rate>0?rate:REFERENCE_PYG_RATE;
   const target=displayCurrency==="ORIGINAL"?fromCurrency:displayCurrency;
   let value=price;
-  if(fromCurrency==="USD"&&target==="PYG")value=Math.round(price*REFERENCE_PYG_RATE);
-  else if(fromCurrency==="PYG"&&target==="USD")value=Math.round(price/REFERENCE_PYG_RATE);
+  if(fromCurrency==="USD"&&target==="PYG")value=Math.round(price*effectiveRate);
+  else if(fromCurrency==="PYG"&&target==="USD")value=Math.round(price/effectiveRate);
   const formatted=new Intl.NumberFormat("es-PY",{style:"currency",currency:target,maximumFractionDigits:0}).format(value);
   return target!==fromCurrency?`${formatted} (ref.)`:formatted;
+};
+
+export const normalizePriceUsd=(price:number|null,currency:"USD"|"PYG"="USD",rate:number=REFERENCE_PYG_RATE):number|null=>{
+  if(price===null)return null;
+  const effectiveRate=rate>0?rate:REFERENCE_PYG_RATE;
+  return currency==="PYG"?price/effectiveRate:price;
 };
 
 export const availability:Record<string,string>={
@@ -57,12 +70,39 @@ export async function api<T=any>(path:string,options:RequestInit={}):Promise<T>{
   return result as T;
 }
 
+export function trackVehicleMetric(vehicleId:string,event:"view"|"whatsapp"){
+  if(!vehicleId||typeof window==="undefined")return;
+  fetch("/api/metrics",{
+    method:"POST",
+    credentials:"same-origin",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({vehicleId,event})
+  }).catch(()=>{});
+}
+
 export function Instagram({size=20}:{size?:number}){
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
       <rect x="3" y="3" width="18" height="18" rx="5"/>
       <circle cx="12" cy="12" r="4"/>
       <circle cx="17.5" cy="6.5" r=".8" fill="currentColor" stroke="none"/>
+    </svg>
+  );
+}
+
+export function QrCodeSvg({value,size=148}:{value:string;size?:number}){
+  const matrix=useMemo(()=>generateQrMatrix(value),[value]);
+  const n=matrix.length;
+  const quiet=2;
+  const total=n+quiet*2;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${total} ${total}`} role="img" aria-label="Código QR de la ficha">
+      <rect width={total} height={total} fill="#ffffff"/>
+      {matrix.map((row,r)=>
+        row.map((dark,c)=>
+          dark?<rect key={`${r}-${c}`} x={c+quiet} y={r+quiet} width={1} height={1} fill="#111111"/>:null
+        )
+      )}
     </svg>
   );
 }
@@ -122,11 +162,13 @@ export function ContactForm({
   vehicleId="",
   vehicleName="",
   defaultType="general",
+  visitMode=false,
   onSuccess
 }:{
   vehicleId?:string;
   vehicleName?:string;
   defaultType?:"general"|"vehicle"|"consignment"|"import";
+  visitMode?:boolean;
   onSuccess?:()=>void;
 }){
   const [busy,setBusy]=useState(false);
@@ -144,7 +186,16 @@ export function ContactForm({
         const fd=new FormData(form);
         const rawMessage=String(fd.get("message")||"").trim();
         let structuredPrefix="";
-        if(defaultType==="consignment"){
+        if(visitMode){
+          const visitDate=String(fd.get("visitDate")||"").trim();
+          const visitSlot=String(fd.get("visitSlot")||"Mañana (09:00 a 12:00)").trim();
+          const specs=[
+            "SOLICITUD DE VISITA AL GARAGE",
+            visitDate&&`Fecha preferida: ${visitDate}`,
+            `Turno: ${visitSlot}`
+          ].filter(Boolean);
+          structuredPrefix=`[${specs.join(" · ")}]\n`;
+        }else if(defaultType==="consignment"){
           const unit=String(fd.get("unitModel")||"").trim();
           const unitYear=String(fd.get("unitYear")||"").trim();
           const unitKm=String(fd.get("unitKm")||"").trim();
@@ -184,7 +235,7 @@ export function ContactForm({
             })
           });
           setOk(true);
-          setFeedback("Recibimos tu consulta. El equipo se pondrá en contacto con vos.");
+          setFeedback(visitMode?"Solicitud de visita registrada. El equipo te confirmará por WhatsApp.":"Recibimos tu consulta. El equipo se pondrá en contacto con vos.");
           form.reset();
           onSuccess?.();
         }catch(error){
@@ -206,7 +257,26 @@ export function ContactForm({
         </label>
       </div>
 
-      {defaultType==="consignment"&&(
+      {visitMode&&(
+        <div className="structured-fields">
+          <div className="form-two">
+            <label>
+              Día preferido para la visita
+              <input name="visitDate" type="date" required min={new Date().toISOString().slice(0,10)}/>
+            </label>
+            <label>
+              Franja horaria
+              <select name="visitSlot" defaultValue="Mañana (09:00 a 12:00)">
+                <option value="Mañana (09:00 a 12:00)">Mañana (09:00 a 12:00)</option>
+                <option value="Siesta / Tarde (14:00 a 18:00)">Tarde (14:00 a 18:00)</option>
+                <option value="Horario especial a coordinar">Horario especial a coordinar</option>
+              </select>
+            </label>
+          </div>
+        </div>
+      )}
+
+      {defaultType==="consignment"&&!visitMode&&(
         <div className="structured-fields">
           <div className="form-two">
             <label>
@@ -239,7 +309,7 @@ export function ContactForm({
         </div>
       )}
 
-      {defaultType==="import"&&(
+      {defaultType==="import"&&!visitMode&&(
         <div className="structured-fields">
           <div className="form-three">
             <label>
@@ -265,14 +335,26 @@ export function ContactForm({
       )}
 
       <label>
-        {defaultType==="consignment"?"Historia, estado y equipamiento de tu unidad":defaultType==="import"?"Detalles del proyecto (año, color, estado o especificaciones)":"Contanos qué estás buscando"}
+        {visitMode
+          ?"Comentarios adicionales para tu visita"
+          :defaultType==="consignment"
+            ?"Historia, estado y equipamiento de tu unidad"
+            :defaultType==="import"
+              ?"Detalles del proyecto (año, color, estado o especificaciones)"
+              :"Contanos qué estás buscando"}
         <textarea
           name="message"
           required
           minLength={10}
           maxLength={1800}
-          rows={4}
-          defaultValue={vehicleName?`Hola, me interesa el ${vehicleName}. Quisiera recibir más información.`:""}
+          rows={visitMode?3:4}
+          defaultValue={
+            visitMode&&vehicleName
+              ?`Hola, quiero coordinar una visita al garage en Luque para ver el ${vehicleName} en persona.`
+              :vehicleName
+                ?`Hola, me interesa el ${vehicleName}. Quisiera recibir más información.`
+                :""
+          }
           placeholder={
             defaultType==="consignment"
               ?"Contanos el estado mecánico, modificaciones, mantenimiento y si cuenta con despacho/documentación al día…"
@@ -290,11 +372,106 @@ export function ContactForm({
         <span>Acepto que Dream Cars me contacte por esta consulta y leí la <a href="/privacidad" target="_blank">política de privacidad</a>.</span>
       </label>
       <button className="button" disabled={busy}>
-        {busy?"Enviando…":defaultType==="consignment"?"Enviar propuesta de vehículo":defaultType==="import"?"Solicitar búsqueda e importación":"Enviar consulta"}
+        {busy
+          ?"Enviando…"
+          :visitMode
+            ?"Confirmar solicitud de visita"
+            :defaultType==="consignment"
+              ?"Enviar propuesta de vehículo"
+              :defaultType==="import"
+                ?"Solicitar búsqueda e importación"
+                :"Enviar consulta"}
         <ArrowUpRight size={18}/>
       </button>
       {feedback&&<p className={ok?"feedback success":"feedback error"} role="status">{feedback}</p>}
     </form>
+  );
+}
+
+export function QrSheetModal({
+  vehicle,
+  settings,
+  onClose
+}:{
+  vehicle:Vehicle;
+  settings:Settings;
+  onClose:()=>void;
+}){
+  const shareUrl=typeof window!=="undefined"?`${window.location.origin}/vehiculos/${vehicle.id}`:`https://dreamcars-py.onrender.com/vehiculos/${vehicle.id}`;
+  const specs:[string,string][]=[
+    ["Marca",vehicle.brand],
+    ["Modelo",vehicle.model],
+    ["Versión",vehicle.version||"—"],
+    ["Año",String(vehicle.year||"A confirmar")],
+    ["Kilometraje",vehicle.mileage!==null?`${vehicle.mileage.toLocaleString("es-PY")} km`:"A confirmar"],
+    ["Carrocería",vehicle.body||"—"],
+    ["Motor",vehicle.engine||"A confirmar"],
+    ["Transmisión",vehicle.transmission||"A confirmar"],
+    ["Tracción",vehicle.drive||"A confirmar"],
+    ["Color",vehicle.color||"—"]
+  ];
+
+  return (
+    <Modal title={`Ficha de Exposición QR · ${vehicle.brand} ${vehicle.model}`} wide onClose={onClose}>
+      <div className="qr-sheet-actions">
+        <p className="modal-description">
+          Hoja lista para imprimir en A4 y colocar en el parabrisas del vehículo en el showroom de Luque. El código QR abre la ficha digital directamente en el celular del visitante.
+        </p>
+        <button type="button" className="button small" onClick={()=>window.print()}>
+          <Printer size={16}/> Imprimir hoja A4 / Guardar PDF
+        </button>
+      </div>
+
+      <div className="printable-spec-sheet" id="printable-spec-sheet">
+        <div className="sheet-header">
+          <div>
+            <strong>DREAM CARS_PY</strong>
+            <span>{settings.address} · {settings.city}</span>
+          </div>
+          <span className="sheet-badge">{availability[vehicle.availability].toUpperCase()}</span>
+        </div>
+
+        <div className="sheet-hero">
+          {vehicle.images[0]?.url&&<img src={vehicle.images[0].url} alt={`${vehicle.brand} ${vehicle.model}`}/>}
+          <div className="sheet-title-box">
+            <span className="sheet-eyebrow">{vehicle.brand.toUpperCase()} / {vehicle.body.toUpperCase()}</span>
+            <h1>{vehicle.model}</h1>
+            <p>{vehicle.version}</p>
+            <strong className="sheet-price">{money(vehicle.price,vehicle.currency)}</strong>
+          </div>
+        </div>
+
+        <div className="sheet-specs-grid">
+          {specs.map(([label,val])=>(
+            <div key={label}>
+              <span>{label}</span>
+              <strong>{val}</strong>
+            </div>
+          ))}
+        </div>
+
+        {vehicle.features.length>0&&(
+          <div className="sheet-features">
+            <strong>Equipamiento destacado:</strong> {vehicle.features.join(" · ")}
+          </div>
+        )}
+
+        <div className="sheet-footer">
+          <div className="sheet-qr-box">
+            <QrCodeSvg value={shareUrl} size={118}/>
+            <div>
+              <strong>ESCANEÁ EL CÓDIGO QR</strong>
+              <p>Abrí la galería completa de fotos, simulador de entrega y contacto directo por WhatsApp en tu celular.</p>
+              <small>{shareUrl}</small>
+            </div>
+          </div>
+          <div className="sheet-contact">
+            <strong>+{settings.whatsapp}</strong>
+            <span>@dreamcars_py</span>
+          </div>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

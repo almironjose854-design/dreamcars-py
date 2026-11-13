@@ -335,3 +335,49 @@
 }
 .site-header .header-cta{color:#f4f3ef}.site-header .header-cta:hover{color:#111}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.car-card,.car-image img{transition:none}.car-card:hover{transform:none}}
+
+
+/* Secondary Detail Actions, Printable QR Windshield Sheet & Legal Layout */
+.detail-secondary-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.detail-secondary-actions .button{width:100%}
+.detail-utility-links{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+
+.qr-sheet-actions{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid #8883}
+
+.printable-spec-sheet{background:#ffffff;color:#141414;border:1px solid #d4d4d4;border-radius:6px;padding:28px;max-width:760px;margin:0 auto;box-shadow:0 12px 34px #00000028}
+.printable-spec-sheet .sheet-header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-bottom:18px;border-bottom:2px solid #141414}
+.printable-spec-sheet .sheet-logo{height:40px;width:auto;filter:invert(1) contrast(1.2)}
+.printable-spec-sheet .sheet-badge{display:inline-block;padding:6px 12px;background:#141414;color:#ffffff;font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase}
+.printable-spec-sheet .sheet-hero{display:grid;grid-template-columns:1.25fr 1fr;gap:22px;align-items:center;margin:20px 0}
+.printable-spec-sheet .sheet-photo{aspect-ratio:16/10;background:#181818;overflow:hidden;border-radius:4px}
+.printable-spec-sheet .sheet-photo img{width:100%;height:100%;object-fit:cover}
+.printable-spec-sheet .sheet-brand{display:block;font-size:11px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:#666666;margin-bottom:4px}
+.printable-spec-sheet .sheet-title-box h3{font-family:var(--display);font-size:44px;line-height:.95;margin:0 0 6px;color:#111111;text-transform:uppercase}
+.printable-spec-sheet .sheet-version{font-size:13px;color:#444444;margin:0 0 14px}
+.printable-spec-sheet .sheet-price{display:inline-block;font-family:var(--display);font-size:32px;color:#111111;padding:6px 14px;background:#f2f2ef;border-left:4px solid #e03a2f}
+.printable-spec-sheet .sheet-specs-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:18px 0;padding:16px 0;border-block:1px solid #dedede}
+.printable-spec-sheet .sheet-specs-grid>div{background:#f8f8f6;padding:10px 12px;border-radius:4px}
+.printable-spec-sheet .sheet-specs-grid span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:#686868;margin-bottom:3px}
+.printable-spec-sheet .sheet-specs-grid strong{font-size:13px;color:#161616}
+.printable-spec-sheet .sheet-features{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px}
+.printable-spec-sheet .sheet-features span{font-size:10px;padding:4px 9px;background:#efefef;color:#222222;border-radius:3px;font-weight:600}
+.printable-spec-sheet .sheet-footer{display:flex;align-items:center;justify-content:space-between;gap:20px;padding-top:16px;border-top:2px solid #141414}
+.printable-spec-sheet .sheet-contact strong{display:block;font-size:14px;color:#111111;margin-bottom:4px}
+.printable-spec-sheet .sheet-contact p{margin:2px 0;font-size:12px;color:#444444}
+.printable-spec-sheet .sheet-url{font-family:monospace;font-size:11px;color:#666666;margin-top:6px}
+.printable-spec-sheet .sheet-qr-box{display:flex;flex-direction:column;align-items:center;gap:4px;background:#ffffff;padding:8px;border:1px solid #d4d4d4;border-radius:4px;flex-shrink:0}
+.printable-spec-sheet .sheet-qr-box span{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#222222}
+
+@media(max-width:640px){
+  .detail-secondary-actions{grid-template-columns:1fr}
+  .printable-spec-sheet{padding:18px}
+  .printable-spec-sheet .sheet-hero{grid-template-columns:1fr}
+  .printable-spec-sheet .sheet-specs-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .printable-spec-sheet .sheet-footer{flex-direction:column;align-items:flex-start}
+}
+
+@media print{
+  body *{visibility:hidden}
+  #printable-spec-sheet,#printable-spec-sheet *{visibility:visible}
+  #printable-spec-sheet{position:fixed;inset:0;width:100%;max-width:none;margin:0;padding:18mm;border:0;box-shadow:none;background:#ffffff;color:#000000}
+}

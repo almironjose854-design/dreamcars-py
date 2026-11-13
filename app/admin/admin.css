@@ -75,3 +75,13 @@
 .admin-v2 .stat,.admin-v2 .admin-vehicles,.admin-v2 .inquiry-card,.admin-v2 .admin-form,.admin-v2 .inventory-insight,.account-form-card{box-shadow:0 4px 16px #00000008;border-color:#dcdcdc}
 .admin-v2 .button{background:#181818;border-color:#181818;color:#f4f3ef}.admin-v2 .button:hover{background:#2e2e2e;border-color:#2e2e2e}
 .admin-v2 .button.secondary{background:#ffffff;border-color:#c8c8c8;color:#222222}.admin-v2 .button.secondary:hover{background:#f0f0f0;border-color:#999999}
+
+
+/* Vehicle Analytics & Danger Action Styles */
+.interest-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:14px}
+.interest-card{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:#ffffff;border:1px solid #dcdcdc;border-radius:6px;box-shadow:0 2px 8px #00000006}
+.interest-card strong{display:block;font-size:13px;color:#181818}
+.interest-card span{font-size:11px;color:#666666}
+.interest-metrics{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:600;color:#2b2b2b}
+.interest-metrics span{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#2b2b2b}
+.icon-button.danger:hover{background:#ffebe8;border-color:#e03a2f;color:#b82218}

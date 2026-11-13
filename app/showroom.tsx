@@ -3,7 +3,7 @@ import {useEffect,useMemo,useState} from "react";
 import {ArrowDown,ArrowRight,ArrowUpRight,Search,Heart,MapPin,MessageCircle,Plus,Check,X,Camera,Share2,Sparkles,Clock} from "lucide-react";
 import seedSettings from "../data/settings.json";
 import type {Vehicle,Settings} from "../lib/types";
-import {api,availability,ContactForm,convertMoney,Footer,Header,FloatingContact,Instagram,Modal,whatsapp} from "./components";
+import {api,availability,ContactForm,convertMoney,Footer,Header,FloatingContact,Instagram,Modal,normalizePriceUsd,REFERENCE_PYG_RATE,whatsapp} from "./components";
 
 function CarCard({
   vehicle:v,
@@ -12,7 +12,8 @@ function CarCard({
   isCompared,
   compareDisabled,
   onToggleCompare,
-  displayCurrency
+  displayCurrency,
+  exchangeRate
 }:{
   vehicle:Vehicle;
   isFavorite:boolean;
@@ -21,6 +22,7 @@ function CarCard({
   compareDisabled:boolean;
   onToggleCompare:()=>void;
   displayCurrency:"ORIGINAL"|"USD"|"PYG";
+  exchangeRate:number;
 }){
   const [photoIdx,setPhotoIdx]=useState(0);
   const totalPhotos=v.images.length;
@@ -93,7 +95,7 @@ function CarCard({
         </div>
         <div className="car-bottom">
           {v.price!==null?(
-            <strong>{convertMoney(v.price,v.currency,displayCurrency)}</strong>
+            <strong>{convertMoney(v.price,v.currency,displayCurrency,exchangeRate)}</strong>
           ):(
             <a className="consult-price-pill" href={`/vehiculos/${v.id}`}>
               <span className="consult-dot"/> Consultar unidad
@@ -236,6 +238,8 @@ export default function Showroom({initialCatalog}:{initialCatalog?:{settings:Set
     setFavoriteOnly(false);
   };
 
+  const rate=settings.exchangeRate||REFERENCE_PYG_RATE;
+
   const filtered=useMemo(
     ()=>
       cars
@@ -248,16 +252,18 @@ export default function Showroom({initialCatalog}:{initialCatalog?:{settings:Set
             (!transFilter||v.transmission===transFilter)&&
             (!favoriteOnly||favorites.includes(v.id))
         )
-        .sort((a,b)=>
-          sort==="price-up"
-            ?(a.price??Infinity)-(b.price??Infinity)
+        .sort((a,b)=>{
+          const pa=normalizePriceUsd(a.price,a.currency,rate);
+          const pb=normalizePriceUsd(b.price,b.currency,rate);
+          return sort==="price-up"
+            ?(pa??Infinity)-(pb??Infinity)
             :sort==="price-down"
-              ?(b.price??-1)-(a.price??-1)
+              ?(pb??-1)-(pa??-1)
               :sort==="recent"
                 ?b.updatedAt.localeCompare(a.updatedAt)
-                :Number(b.featured)-Number(a.featured)
-        ),
-    [cars,query,brand,body,availFilter,transFilter,sort,favoriteOnly,favorites]
+                :Number(b.featured)-Number(a.featured);
+        }),
+    [cars,query,brand,body,availFilter,transFilter,sort,favoriteOnly,favorites,rate]
   );
 
   const heroVehicle=heroVehicles[heroIdx]||cars[0];
@@ -265,7 +271,7 @@ export default function Showroom({initialCatalog}:{initialCatalog?:{settings:Set
   const comparedCars=useMemo(()=>cars.filter(v=>compare.includes(v.id)),[cars,compare]);
 
   const comparisonRows:[string,(v:Vehicle)=>string][]=[
-    ["Precio",v=>convertMoney(v.price,v.currency,displayCurrency)],
+    ["Precio",v=>convertMoney(v.price,v.currency,displayCurrency,rate)],
     ["Año",v=>String(v.year||"A confirmar")],
     ["Kilometraje",v=>v.mileage!==null?`${v.mileage.toLocaleString("es-PY")} km`:"A confirmar"],
     ["Carrocería",v=>v.body||"A confirmar"],
@@ -535,6 +541,7 @@ export default function Showroom({initialCatalog}:{initialCatalog?:{settings:Set
                   compareDisabled={compare.length===3&&!compare.includes(v.id)}
                   onToggleCompare={()=>setCompare(prev=>prev.includes(v.id)?prev.filter(id=>id!==v.id):[...prev,v.id])}
                   displayCurrency={displayCurrency}
+                  exchangeRate={rate}
                 />
               ))}
             </div>
