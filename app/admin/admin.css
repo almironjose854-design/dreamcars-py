@@ -26,3 +26,52 @@
 
 /* Restored wordmark keeps its complete lettering at every breakpoint. */
 .login-brand img{width:230px;height:50px;object-fit:cover;object-position:center;mix-blend-mode:screen;filter:none}.admin-v2 .admin-logo img{width:190px;height:42px;object-fit:cover;object-position:center;mix-blend-mode:screen;filter:none}.admin-v2 .button{color:#171717}.admin-v2 .button.secondary{color:#555}.login-submit{background:#252525;color:#fff!important;border-color:#252525}.login-submit:hover{background:#404040;border-color:#404040}.login-story-copy h1 em{color:#f0eee8}.login-story{background:#111}.login-shade{background:linear-gradient(180deg,#111111e8 1%,#11111145 40%,#111111e8 78%,#111111f5)}@media(max-width:1000px){.admin-v2 .admin-logo img{width:155px;height:34px}}@media(max-width:760px){.login-brand img{width:180px;height:39px}.admin-v2 .admin-logo img{width:140px;height:31px}}@media(max-width:560px){.login-brand img{width:176px;height:38px}.admin-v2 .admin-logo img{width:160px;height:35px}}
+
+
+/* Admin Quick Actions, Inquiry CRM, Image Reordering & IG Story Flyer Generator */
+.admin-quick-selects{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.admin-v2 .admin-inline-select{width:auto;min-width:118px;padding:7px 10px;font-size:11px;border-radius:5px;background:#f8f8f8;border:1px solid #dfdfdf;color:#4a4a4a;font-weight:500}
+.admin-v2 .admin-inline-select.status-published{background:#eef5ec;border-color:#c8dec2;color:#35592c}
+.admin-v2 .admin-inline-select.status-draft{background:#fff8e6;border-color:#eddba6;color:#7d621d}
+.admin-v2 .admin-inline-select.status-archived{background:#f2f2f2;border-color:#d8d8d8;color:#6e6e6e}
+.admin-v2 .featured-star.active{color:#b8860b;border-color:#e2c675;background:#fffaf0}
+
+.inquiry-badge-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.inquiry-car-chip{display:inline-flex;align-items:center;gap:8px;padding:4px 10px 4px 5px;background:#f5f5f5;border:1px solid #e0e0e0;border-radius:5px;font-size:11px;color:#4f4f4f;font-weight:500}
+.inquiry-car-chip:hover{background:#ececec;border-color:#c8c8c8}
+.inquiry-car-chip img{width:34px;height:24px;object-fit:cover;border-radius:3px}
+.inquiry-notes-box{background:#f9f9f9;border:1px solid #e6e6e6;border-radius:6px;padding:12px 14px;margin-bottom:18px;display:flex;flex-direction:column;gap:10px}
+.inquiry-notes-box label{font-size:10px;font-weight:600;color:#666}
+.inquiry-notes-box textarea{background:#fff;font-size:11px;padding:9px 11px}
+.inquiry-notes-box .button{align-self:flex-end}
+
+.editor-gallery-actions{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.webp-toggle{margin:0;font-size:11px;cursor:pointer;align-items:center}
+.editor-images>div{cursor:grab}
+.editor-images>div:active{cursor:grabbing}
+.editor-image-controls{display:flex;align-items:center;justify-content:space-between;gap:4px;padding:6px 8px}
+.editor-image-controls button{padding:3px 5px;border-radius:3px}
+.editor-image-controls button:hover:not(:disabled){background:#e6e6e6;color:#222}
+
+.flyer-generator-grid{display:grid;grid-template-columns:300px 1fr;gap:28px;align-items:start}
+.flyer-preview-col{background:#141414;padding:12px;border-radius:8px;border:1px solid #d5d5d5;display:flex;justify-content:center}
+.flyer-canvas{width:100%;max-width:276px;height:auto;aspect-ratio:9/16;display:block;border-radius:4px;box-shadow:0 10px 30px #0004}
+.flyer-controls-col{display:flex;flex-direction:column;gap:18px}
+.flyer-controls-col .button{align-self:flex-start;margin-top:6px}
+@media(max-width:760px){
+  .flyer-generator-grid{grid-template-columns:1fr}
+  .flyer-preview-col{max-width:280px;margin:0 auto}
+}
+
+
+/* High-contrast Admin Typography & Transparent Wordmark */
+.login-brand img,.admin-v2 .admin-logo img{mix-blend-mode:normal;object-fit:contain;object-position:left center}
+.admin-v2{--bg:#f2f2f0;--surface:#ffffff;--line:#dcdcdc;--text:#181818;--muted:#585858}
+.admin-v2 .admin-heading h1,.admin-v2 .stat>strong,.admin-v2 .admin-form h2,.admin-v2 .admin-form h3,.admin-v2 .admin-vehicle-name>strong,.admin-v2 .inquiry-header h3,.admin-v2 .modal-head h2,.account-form-card>h2{color:#161616}
+.admin-v2 .admin-section-head h2,.admin-v2 .setup-callout h3,.admin-v2 .inventory-insight h3,.admin-v2 .admin-empty h3,.admin-v2 .integration-status h2,.admin-v2 .backup-explainer h3,.account-session-card h3{color:#222222;font-weight:650}
+.admin-v2 label,.account-form-card label,.password-field>label{color:#333333;font-weight:600}
+.admin-v2 input,.admin-v2 textarea,.admin-v2 select,.account-form-card input,.account-form-card .password-input>input{color:#181818;border-color:#d0d0d0;background:#ffffff}
+.admin-v2 .muted,.admin-v2 .admin-hint,.admin-v2 .stat>span,.admin-v2 .admin-vehicle-name>span,.admin-v2 .admin-form>p,.admin-v2 .integration-status p,.admin-v2 .backup-explainer p,.admin-v2 .inquiry-header span,.admin-v2 .inquiry-card>p,.admin-v2 .lead-list p,.admin-v2 .inventory-insight p:last-child,.account-form-card>p:not(.eyebrow),.account-session-card p{color:#525252}
+.admin-v2 .stat,.admin-v2 .admin-vehicles,.admin-v2 .inquiry-card,.admin-v2 .admin-form,.admin-v2 .inventory-insight,.account-form-card{box-shadow:0 4px 16px #00000008;border-color:#dcdcdc}
+.admin-v2 .button{background:#181818;border-color:#181818;color:#f4f3ef}.admin-v2 .button:hover{background:#2e2e2e;border-color:#2e2e2e}
+.admin-v2 .button.secondary{background:#ffffff;border-color:#c8c8c8;color:#222222}.admin-v2 .button.secondary:hover{background:#f0f0f0;border-color:#999999}

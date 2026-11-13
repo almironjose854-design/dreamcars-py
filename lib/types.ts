@@ -11,5 +11,16 @@ export type Settings = {
   instagram:string; email:string; hours:string; about:string;
   logo:string; heroImage:string;
 };
-export type Inquiry = {id:string;name:string;phone:string;message:string;vehicleId:string;type:string;consent:boolean;status:"new"|"contacted"|"closed";createdAt:string};
+export type Inquiry = {
+  id: string;
+  name: string;
+  phone: string;
+  message: string;
+  vehicleId: string;
+  type: "vehicle" | "consignment" | "general" | "import" | string;
+  consent: boolean;
+  status: "new" | "contacted" | "closed";
+  notes?: string;
+  createdAt: string;
+};
 export type AdminSessionInfo = {isAdmin:boolean;user:{username:string;displayName:string}|null;mustChangePassword:boolean;csrfToken:string|null;expiresAt:number|null};

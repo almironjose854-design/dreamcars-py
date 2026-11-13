@@ -14,4 +14,4 @@ export const settingsSchema=z.object({name:text(100).min(1),tagline:text(200),ad
   whatsapp:z.string().regex(/^[0-9]{8,16}$/),instagram:z.string().regex(/^https:\/\/(www\.)?instagram\.com\/[a-zA-Z0-9_.]+\/?$/),
   email:z.union([z.literal(""),z.string().email()]),hours:text(300),about:text(4000),logo:safeUrl,heroImage:safeUrl});
 export const inquirySchema=z.object({name:text(100).min(2),phone:text(40).regex(/^\+?[0-9\s()-]{7,30}$/),message:text(2000).min(10),
-  vehicleId:text(80).default(""),type:z.enum(["vehicle","consignment","general"]),consent:z.literal(true),website:z.string().max(0).optional()});
+  vehicleId:text(80).default(""),type:z.enum(["vehicle","consignment","general","import"]),consent:z.literal(true),notes:text(2000).optional(),website:z.string().max(0).optional()});

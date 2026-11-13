@@ -18,7 +18,10 @@ async function account() {
   if (!initial.username || !initial.passwordHash || !initial.salt || !initial.version) throw new ApiError(503, "Falta configurar la cuenta administradora.");
   return { data: initial, etag: null };
 }
-function cookieName(req: Request) { return new URL(req.url).protocol === "https:" ? "__Host-dreamcars_session" : "dreamcars_session"; }
+function isHttps(req: Request) {
+  return new URL(req.url).protocol === "https:" || req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() === "https";
+}
+function cookieName(req: Request) { return isHttps(req) ? "__Host-dreamcars_session" : "dreamcars_session"; }
 function tokenFrom(req: Request) {
   const name = cookieName(req) + "=";
   const values = (req.headers.get("cookie") || "").split(";").map(v => v.trim()).filter(v => v.startsWith(name));
@@ -27,7 +30,7 @@ function tokenFrom(req: Request) {
   return /^[A-Za-z0-9_-]{43}$/.test(value) ? value : null;
 }
 function cookie(req: Request, token: string, maxAge: number) {
-  return `${cookieName(req)}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${new URL(req.url).protocol === "https:" ? "; Secure" : ""}`;
+  return `${cookieName(req)}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${isHttps(req) ? "; Secure" : ""}`;
 }
 export async function adminSession(req: Request) {
   const token = tokenFrom(req); if (!token) return null;

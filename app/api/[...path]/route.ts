@@ -31,7 +31,20 @@ async function inquiryLimit(req:Request){
   }
   throw new ApiError(429,"Ya recibimos varias consultas tuyas. Esperá unos minutos o escribinos por WhatsApp.");
 }
-function origin(req:Request){const o=req.headers.get("origin");if(o!==new URL(req.url).origin)throw new ApiError(403,"Origen no permitido.");if(req.headers.get("sec-fetch-site")==="cross-site")throw new ApiError(403,"Solicitud no permitida.");}
+function origin(req:Request){
+  const o=req.headers.get("origin");
+  if(!o)throw new ApiError(403,"Origen no permitido.");
+  const reqUrl=new URL(req.url);
+  const fwdProto=req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const fwdHost=req.headers.get("x-forwarded-host")?.split(",")[0]?.trim()||req.headers.get("host")?.trim();
+  const expectedOrigins=new Set([reqUrl.origin]);
+  if(fwdHost){
+    expectedOrigins.add(`${fwdProto||reqUrl.protocol.replace(":","")}://${fwdHost}`);
+    expectedOrigins.add(`https://${fwdHost}`);
+  }
+  if(!expectedOrigins.has(o))throw new ApiError(403,"Origen no permitido.");
+  if(req.headers.get("sec-fetch-site")==="cross-site")throw new ApiError(403,"Solicitud no permitida.");
+}
 function authResponse(result:unknown,cookie:string){return Response.json(result,{headers:{"Cache-Control":"no-store","Set-Cookie":cookie,"X-Content-Type-Options":"nosniff"}});}
 async function handle(req:Request){
   try{
@@ -78,10 +91,14 @@ async function handle(req:Request){
         await bucket().delete(key);return json({ok:true});
       }
       if(inquiry&&method==="PATCH"){
-        const input=await body(req);if(!["new","contacted","closed"].includes(input.status))throw new ApiError(400,"Estado inválido.");
+        const input=await body(req);
         const old=await readDoc<Inquiry|null>(`inquiries/${inquiry[1]}.json`,null);if(!old.data)throw new ApiError(404,"Consulta no encontrada.");
         if(old.etag!==(input._etag??null))throw new ApiError(409,"La consulta cambió. Actualizá antes de guardar.");
-        const etag=await writeDoc(`inquiries/${inquiry[1]}.json`,{...old.data,status:input.status},old.etag);return json({...old.data,status:input.status,_etag:etag});
+        const nextStatus=input.status!==undefined?input.status:old.data.status;
+        if(!["new","contacted","closed"].includes(nextStatus))throw new ApiError(400,"Estado inválido.");
+        const nextNotes=input.notes!==undefined?String(input.notes).trim().slice(0,2000):old.data.notes;
+        const updated:Inquiry={...old.data,status:nextStatus,...(nextNotes!==undefined?{notes:nextNotes}:{})};
+        const etag=await writeDoc(`inquiries/${inquiry[1]}.json`,updated,old.etag);return json({...updated,_etag:etag});
       }
       if(path==="admin/cloudinary"&&method==="POST"){
         rate(req,10);const input=await body(req);

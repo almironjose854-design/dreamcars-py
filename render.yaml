@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: dreamcars-py
+    runtime: node
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 22.13.0
+      - key: ADMIN_AUTH_SECRET
+        generateValue: true
+      - key: INTEGRATION_ENCRYPTION_KEY
+        generateValue: true
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_INITIAL_PASSWORD
+        value: DreamCars-Admin-2026!
