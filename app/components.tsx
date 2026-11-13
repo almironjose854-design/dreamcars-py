@@ -2,6 +2,7 @@
 import {useEffect,useRef} from "react";
 import {ArrowUpRight,Menu,X,MapPin,MessageCircle,ShieldCheck} from "lucide-react";
 import type {Settings} from "../lib/types";
+import {brandLogo} from "../lib/branding";
 import {useState} from "react";
 export const whatsapp=(number:string,message="¡Hola, Dream Cars! Quiero conocer más sobre sus vehículos.")=>`https://wa.me/${number}?text=${encodeURIComponent(message)}`;
 export const money=(price:number|null,currency="USD")=>price===null?"Precio a consultar":new Intl.NumberFormat("es-PY",{style:"currency",currency,maximumFractionDigits:0}).format(price);
@@ -16,7 +17,7 @@ export async function api<T=any>(path:string,options:RequestInit={}):Promise<T>{
   return result as T;
 }
 export function Instagram({size=20}:{size?:number}){return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".8" fill="currentColor" stroke="none"/></svg>;}
-export function Brand({settings}:{settings:Settings}) {return <a className="brand" href="/" aria-label="Dream Cars PY, inicio"><img src={settings.logo} alt={settings.name} width="150" height="52"/><span>EST. 2018 · PARAGUAY</span></a>;}
+export function Brand({settings}:{settings:Settings}) {return <a className="brand" href="/" aria-label="Dream Cars PY, inicio"><img src={brandLogo(settings.logo)} alt={settings.name} width="2172" height="724"/></a>;}
 export function Header({settings}:{settings:Settings}){
   const [open,setOpen]=useState(false);
   return <header className="site-header"><div className="header-inner"><Brand settings={settings}/><nav aria-label="Navegación principal" className={open?"nav open":"nav"}><a onClick={()=>setOpen(false)} href="/#coleccion">La colección</a><a onClick={()=>setOpen(false)} href="/#nosotros">Nuestra esencia</a><a onClick={()=>setOpen(false)} href="/#servicios">Vendé tu auto</a><a onClick={()=>setOpen(false)} href="/#contacto">Contacto</a></nav><a className="button small header-cta" href={whatsapp(settings.whatsapp)} target="_blank" rel="noreferrer">Hablemos <ArrowUpRight size={15}/></a><button className="icon-button mobile-toggle" aria-label={open?"Cerrar menú":"Abrir menú"} aria-expanded={open} onClick={()=>setOpen(!open)}>{open?<X/>:<Menu/>}</button></div></header>;
