@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 112" width="540" height="112" role="img" aria-label="Dream Cars PY">
+  <g fill="none" fill-rule="evenodd">
+    <!-- JDM Speed Slash Emblem -->
+    <polygon points="10,86 30,22 46,22 26,86" fill="#E03A2F"/>
+    <polygon points="34,86 54,22 64,22 44,86" fill="#F4F3EF"/>
+    <!-- Wordmark -->
+    <text x="80" y="68" fill="#F4F3EF" font-family="'Barlow Condensed', 'Arial Narrow', Impact, sans-serif" font-size="62" font-weight="800" font-style="italic" letter-spacing="3">DREAM CARS</text>
+    <rect x="404" y="27" width="66" height="44" rx="2" fill="#F4F3EF"/>
+    <text x="415" y="60" fill="#111111" font-family="'Barlow Condensed', 'Arial Narrow', Impact, sans-serif" font-size="38" font-weight="800" letter-spacing="2">PY</text>
+    <!-- Subtitle -->
+    <text x="82" y="92" fill="#B4B4B4" font-family="'Manrope', Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="5">SINCE.2012 · LUQUE · PARAGUAY</text>
+  </g>
+</svg>

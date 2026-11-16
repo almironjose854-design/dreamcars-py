@@ -42,11 +42,35 @@ async function ensureDevVars() {
 
   const authSecret = process.env.ADMIN_AUTH_SECRET || base64url(crypto.getRandomValues(new Uint8Array(32)));
   const encKey = process.env.INTEGRATION_ENCRYPTION_KEY || base64url(crypto.getRandomValues(new Uint8Array(32)));
+  const s3Keys = ["S3_ENDPOINT", "S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY"];
+  const hasS3 = s3Keys.every(key => Boolean(process.env[key]));
+  const hasUpstash = Boolean(
+    (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) ||
+      (process.env.DREAMCARS_CLOUD_KV_URL && process.env.DREAMCARS_CLOUD_KV_TOKEN)
+  );
+  if (process.env.DREAMCARS_REQUIRE_DURABLE_STORAGE === "true" && !hasS3 && !hasUpstash) {
+    throw new Error(
+      "Falta configurar almacenamiento persistente en la nube: definí UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN (gratis en Upstash) o S3_ENDPOINT + S3_BUCKET + S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY antes de iniciar en Render."
+    );
+  }
+  if (!hasS3 && !hasUpstash) {
+    console.warn(
+      "[Dream Cars PY] Aviso: Usando almacenamiento local (.wrangler/state). Para persistencia permanente en Render Free ante reinicios, configurá UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN o S3_*."
+    );
+  }
   let bootstrapAccount = process.env.ADMIN_BOOTSTRAP_ACCOUNT;
 
   if (!bootstrapAccount) {
-    const initialPassword = process.env.ADMIN_INITIAL_PASSWORD || "DreamCars-Admin-2026!";
-    const salt = "dreamcars-render-salt";
+    const initialPassword = process.env.ADMIN_INITIAL_PASSWORD || "bvnFjUmo-fXB8HsW4MhM2arUVeKg";
+    const saltKey = await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(authSecret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+    const saltBytes = await crypto.subtle.sign("HMAC", saltKey, encoder.encode("dreamcars-render-salt-v2"));
+    const salt = base64url(new Uint8Array(saltBytes).slice(0, 18));
     const passwordHash = await derivePasswordHash(initialPassword, salt, authSecret);
     bootstrapAccount = JSON.stringify({
       username: (process.env.ADMIN_USERNAME || "admin").toLowerCase(),
@@ -54,7 +78,7 @@ async function ensureDevVars() {
       salt,
       passwordHash,
       version: "v1-render-bootstrap",
-      mustChangePassword: Boolean(process.env.ADMIN_MUST_CHANGE_PASSWORD === "true"),
+      mustChangePassword: process.env.ADMIN_MUST_CHANGE_PASSWORD === "true",
       updatedAt: new Date().toISOString(),
     });
   }
@@ -65,7 +89,21 @@ async function ensureDevVars() {
     `ADMIN_BOOTSTRAP_ACCOUNT=${JSON.stringify(bootstrapAccount)}`,
   ];
 
-  for (const key of ["CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"]) {
+  for (const key of [
+    "DREAMCARS_REQUIRE_DURABLE_STORAGE",
+    "CLOUDINARY_CLOUD_NAME",
+    "CLOUDINARY_API_KEY",
+    "CLOUDINARY_API_SECRET",
+    "S3_ENDPOINT",
+    "S3_REGION",
+    "S3_BUCKET",
+    "S3_ACCESS_KEY_ID",
+    "S3_SECRET_ACCESS_KEY",
+    "UPSTASH_REDIS_REST_URL",
+    "UPSTASH_REDIS_REST_TOKEN",
+    "DREAMCARS_CLOUD_KV_URL",
+    "DREAMCARS_CLOUD_KV_TOKEN"
+  ]) {
     if (process.env[key]) {
       lines.push(`${key}=${JSON.stringify(process.env[key])}`);
     }

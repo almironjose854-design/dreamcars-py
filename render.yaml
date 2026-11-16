@@ -8,6 +8,8 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 22.13.0
+      - key: NEXT_PUBLIC_SITE_URL
+        value: https://dreamcars-py.onrender.com
       - key: ADMIN_AUTH_SECRET
         generateValue: true
       - key: INTEGRATION_ENCRYPTION_KEY
@@ -15,4 +17,22 @@ services:
       - key: ADMIN_USERNAME
         value: admin
       - key: ADMIN_INITIAL_PASSWORD
-        value: DreamCars-Admin-2026!
+        sync: false
+      - key: ADMIN_MUST_CHANGE_PASSWORD
+        value: "false"
+      - key: DREAMCARS_REQUIRE_DURABLE_STORAGE
+        value: "false"
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_REGION
+        value: auto
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false

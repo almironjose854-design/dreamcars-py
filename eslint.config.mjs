@@ -14,13 +14,12 @@ const eslintConfig = defineConfig([
     "work/**",
   ]),
   {
-    files: ["components/ui/**/*.{ts,tsx}", "hooks/use-mobile.ts"],
     rules: {
-      // These files are vendored verbatim from shadcn@4.17.0. Keep the
-      // registry source intact while applying the stricter rules to Site code.
-      "@typescript-eslint/no-unused-vars": "off",
-      "react-hooks/purity": "off",
-      "react-hooks/set-state-in-effect": "off",
+      // Vinext serves dynamic Cloudinary/R2 URLs directly; its image pipeline
+      // does not provide the optimization contract expected by next/image.
+      "@next/next/no-img-element": "off",
+      // Hash navigation and top-level admin exits intentionally use anchors.
+      "@next/next/no-html-link-for-pages": "off",
     },
   },
 ]);

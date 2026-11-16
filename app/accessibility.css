@@ -1,0 +1,17 @@
+.skip-link{position:fixed;left:16px;top:12px;z-index:1000;transform:translateY(-160%);background:#f4f3ef;color:#111;padding:12px 16px;border-radius:4px;font-weight:800;box-shadow:0 8px 30px #0006}
+.skip-link:focus{transform:translateY(0)}
+
+/* Enforce legible minimum font sizes across desktop & mobile (never 6–9 px) */
+.hero-description,.section-top>p,.essence-copy>p:not(.eyebrow),.service-grid p,.contact-form label,.detail-description,.garage-description{font-size:max(13px,0.8125rem)}
+.car-tag,.availability,.catalog-meta,.filter-select>span,.hero-foot,.image-caption,.brand-strip>span,.strip-label,.garage-photo-top,.garage-photo-label span,.intro-year,.garage-signature{font-size:max(11px,0.6875rem)}
+.car-specs,.car-version,.compare-button,.footer-bottom,.eyebrow,.admin-v2 .eyebrow,.car-brand,.car-brand>span,.brand-pill small,.favorite-filter small{font-size:max(11px,0.6875rem)}
+.admin-v2 .admin-label,.admin-v2 .admin-sidebar nav small,.admin-v2 .profile-avatar+span small,.admin-v2 .connection-pill,.admin-v2 .inventory-filters>label,.admin-v2 .admin-vehicle-name>small,.admin-v2 .admin-vehicle-name>span,.admin-v2 .lead-list span,.admin-v2 .inquiry-header span,.admin-v2 .inquiry-type,.login-story-footer,.login-bottomline,.login-topline>span,.login-trust{font-size:max(11px,0.6875rem)!important}
+
+@media(max-width:640px){
+  input,select,textarea{font-size:16px}
+  .hero-description,.section-top>p,.essence-copy>p:not(.eyebrow),.service-grid p,.contact-form label,.detail-description,.garage-description{font-size:13px}
+  .car-tag,.availability,.catalog-meta,.filter-select>span,.hero-foot,.image-caption,.brand-strip>span,.strip-label,.garage-photo-top,.garage-photo-label span,.intro-year{font-size:11px}
+  .car-specs,.car-version,.compare-button,.footer-bottom,.eyebrow,.admin-v2 .eyebrow,.car-brand,.car-brand>span{font-size:11px}
+  .admin-v2 input,.admin-v2 select,.admin-v2 textarea,.account-form-card input,.username-input input,.password-input input{font-size:16px}
+  .admin-v2 .admin-sidebar nav>button,.admin-v2 .lead-tabs button,.admin-v2 .admin-hint,.admin-v2 .admin-form label{font-size:12px}
+}
