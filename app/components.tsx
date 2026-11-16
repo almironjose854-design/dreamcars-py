@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { Link } from "../lib/nav-link";
 import { ArrowUpRight, Menu, X, MessageCircle, ShieldCheck, Printer } from "lucide-react";
 import type { Settings, Vehicle } from "../lib/types";
 import { brandLogo } from "../lib/branding";

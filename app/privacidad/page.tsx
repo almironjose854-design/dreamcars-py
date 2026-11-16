@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "../../lib/nav-link";
 import { settings } from "../../lib/store";
 import { Header, Footer, whatsapp } from "../components";
 
