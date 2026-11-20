@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "dreamcars-py",
+  "name": "showroom",
   "main": "./worker/index.ts",
   "compatibility_date": "2026-03-01",
   "compatibility_flags": ["nodejs_compat"],
@@ -9,7 +9,7 @@
     "enabled": true
   },
   "vars": {
-    "NEXT_PUBLIC_SITE_URL": "https://dreamcars-py.almironjose854.workers.dev"
+    "NEXT_PUBLIC_SITE_URL": "https://showroom.dreamcars-py.workers.dev"
   },
   "r2_buckets": [
     {

@@ -1,4 +1,4 @@
-const fallback="https://dreamcars-py.almironjose854.workers.dev";
+const fallback="https://showroom.dreamcars-py.workers.dev";
 
 export const SITE_URL=(()=>{
   const candidate=process.env.NEXT_PUBLIC_SITE_URL?.trim();
