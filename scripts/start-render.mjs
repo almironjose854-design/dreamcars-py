@@ -23,6 +23,13 @@ function base64url(bytes) {
   return Buffer.from(bytes).toString("base64url");
 }
 
+function formatDevVar(key, value) {
+  const clean = String(value).replace(/[\r\n]+/g, "");
+  if (!clean.includes("'")) return `${key}='${clean}'`;
+  if (!clean.includes("`")) return `${key}=\`${clean}\``;
+  return `${key}=${clean}`;
+}
+
 async function derivePasswordHash(password, salt, pepper) {
   const pepperKey = await crypto.subtle.importKey(
     "raw",
@@ -47,7 +54,7 @@ async function ensureDevVars() {
   mkdirSync(distServerDir, { recursive: true });
   const distVars = path.join(distServerDir, ".dev.vars");
 
-  if (existsSync(rootVars)) {
+  if (!process.env.RENDER && existsSync(rootVars)) {
     copyFileSync(rootVars, distVars);
     return;
   }
@@ -94,11 +101,12 @@ async function ensureDevVars() {
       updatedAt: new Date().toISOString(),
     });
   }
+  bootstrapAccount = bootstrapAccount.replace(/'/g, "\\u0027");
 
   const lines = [
-    `ADMIN_AUTH_SECRET=${JSON.stringify(authSecret)}`,
-    `INTEGRATION_ENCRYPTION_KEY=${JSON.stringify(encKey)}`,
-    `ADMIN_BOOTSTRAP_ACCOUNT=${JSON.stringify(bootstrapAccount)}`,
+    formatDevVar("ADMIN_AUTH_SECRET", authSecret),
+    formatDevVar("INTEGRATION_ENCRYPTION_KEY", encKey),
+    formatDevVar("ADMIN_BOOTSTRAP_ACCOUNT", bootstrapAccount),
   ];
 
   for (const key of [
@@ -117,7 +125,7 @@ async function ensureDevVars() {
     "DREAMCARS_CLOUD_KV_TOKEN"
   ]) {
     if (process.env[key]) {
-      lines.push(`${key}=${JSON.stringify(process.env[key])}`);
+      lines.push(formatDevVar(key, process.env[key]));
     }
   }
 

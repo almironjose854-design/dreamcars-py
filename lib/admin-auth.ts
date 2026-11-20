@@ -36,7 +36,10 @@ async function account() {
   if (stored.data) return stored as { data: AdminAccount; etag: string };
   let initial: AdminAccount;
   try {
-    initial = JSON.parse(env.ADMIN_BOOTSTRAP_ACCOUNT || "");
+    const raw = (env.ADMIN_BOOTSTRAP_ACCOUNT || "").trim();
+    const normalizedRaw = raw.startsWith('{\\"') ? raw.replace(/\\"/g, '"') : raw;
+    const parsed = JSON.parse(normalizedRaw);
+    initial = typeof parsed === "string" ? JSON.parse(parsed) : parsed;
   } catch {
     throw new ApiError(503, "El acceso administrativo todavía no está configurado.");
   }
