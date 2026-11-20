@@ -19,13 +19,13 @@ export const metadata: Metadata = {
     title:"Dream Cars PY — Preservamos leyendas",
     description:"Vehículos con carácter, íconos japoneses y deportivos seleccionados en Luque, Paraguay.",
     url:"/",
-    images:[{url:"/media/showroom.jpg",width:1600,height:1067,alt:"Showroom de Dream Cars PY en Luque"}]
+    images:[{url:"/media/og-logo.jpg",width:1200,height:630,alt:"Dream Cars PY — Since 2012"}]
   },
   twitter:{
     card:"summary_large_image",
     title:"Dream Cars PY — Preservamos leyendas",
     description:"Compra, venta, consignación e importación de vehículos con carácter.",
-    images:["/media/showroom.jpg"]
+    images:["/media/og-logo.jpg"]
   },
   icons: {
     icon: "/favicon.svg",
@@ -52,7 +52,7 @@ export default function RootLayout({
             name:"Dream Cars PY",
             url:SITE_URL,
             logo:`${SITE_URL}/media/dreamcars-logo-hd.png`,
-            image:`${SITE_URL}/media/showroom.jpg`,
+            image:`${SITE_URL}/media/og-logo.jpg`,
             telephone:"+595981304731",
             slogan:"No solo vendemos autos, preservamos leyendas.",
             address:{
