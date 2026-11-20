@@ -80,7 +80,7 @@ async function ensureDevVars() {
   let bootstrapAccount = process.env.ADMIN_BOOTSTRAP_ACCOUNT;
 
   if (!bootstrapAccount) {
-    const initialPassword = process.env.ADMIN_INITIAL_PASSWORD || "bvnFjUmo-fXB8HsW4MhM2arUVeKg";
+    const initialPassword = process.env.ADMIN_INITIAL_PASSWORD || "dreamcarspy2026";
     const saltKey = await crypto.subtle.importKey(
       "raw",
       encoder.encode(authSecret),
@@ -96,7 +96,7 @@ async function ensureDevVars() {
       displayName: "Dream Cars PY",
       salt,
       passwordHash,
-      version: "v1-render-bootstrap",
+      version: "v2-render-bootstrap",
       mustChangePassword: process.env.ADMIN_MUST_CHANGE_PASSWORD === "true",
       updatedAt: new Date().toISOString(),
     });
