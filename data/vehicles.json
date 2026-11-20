@@ -24,9 +24,7 @@
       "Chasis de alta rigidez X-Bone"
     ],
     "images": [
-      { "url": "/media/honda-s2000.jpg" },
-      { "url": "/media/showroom.jpg" },
-      { "url": "/media/collection.jpg" }
+      { "url": "/media/honda-s2000.jpg" }
     ],
     "status": "published",
     "availability": "available",
@@ -60,9 +58,7 @@
       "Edición conmemorativa V-Limited WRC"
     ],
     "images": [
-      { "url": "/media/subaru-type-r.jpg" },
-      { "url": "/media/subaru-black.jpg" },
-      { "url": "/media/showroom.jpg" }
+      { "url": "/media/subaru-type-r.jpg" }
     ],
     "status": "published",
     "availability": "available",
@@ -95,9 +91,7 @@
       "Alerón trasero regulable de homologación WRC"
     ],
     "images": [
-      { "url": "/media/mitsubishi-evo.jpg" },
-      { "url": "/media/collection.jpg" },
-      { "url": "/media/showroom.jpg" }
+      { "url": "/media/mitsubishi-evo.jpg" }
     ],
     "status": "published",
     "availability": "available",
@@ -130,9 +124,7 @@
       "Kit aerodinámico ancho de homologación"
     ],
     "images": [
-      { "url": "/media/mitsubishi-evo-white.jpg" },
-      { "url": "/media/collection.jpg" },
-      { "url": "/media/showroom.jpg" }
+      { "url": "/media/mitsubishi-evo-white.jpg" }
     ],
     "status": "published",
     "availability": "consult",
@@ -165,9 +157,7 @@
       "Llantas doradas de aleación ligera"
     ],
     "images": [
-      { "url": "/media/subaru-wrx.jpg" },
-      { "url": "/media/subaru-black.jpg" },
-      { "url": "/media/showroom.jpg" }
+      { "url": "/media/subaru-wrx.jpg" }
     ],
     "status": "published",
     "availability": "consult",

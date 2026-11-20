@@ -3,24 +3,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "../lib/nav-link";
 import { ArrowUpRight, Menu, X, MessageCircle, ShieldCheck, Printer } from "lucide-react";
 import type { Settings, Vehicle } from "../lib/types";
-import { brandLogo } from "../lib/branding";
+import { brandLogo, formatPhone, normalizeWhatsappNumber, whatsapp } from "../lib/branding";
 import { generateQrMatrix } from "../lib/qr";
 
+export { formatPhone, normalizeWhatsappNumber, whatsapp };
 export const REFERENCE_PYG_RATE = 7800;
-
-export function normalizeWhatsappNumber(raw: string): string {
-  let digits = (raw || "").replace(/\D/g, "");
-  if (digits.startsWith("00")) digits = digits.slice(2);
-  if (/^09\d{8}$/.test(digits)) return `595${digits.slice(1)}`;
-  if (/^9\d{8}$/.test(digits)) return `595${digits}`;
-  if (/^59509\d{8}$/.test(digits)) return `595${digits.slice(4)}`;
-  return digits;
-}
-
-export const whatsapp = (
-  number: string,
-  message = "¡Hola, Dream Cars! Quiero conocer más sobre sus vehículos."
-) => `https://wa.me/${normalizeWhatsappNumber(number)}?text=${encodeURIComponent(message)}`;
 
 export const money = (price: number | null, currency = "USD") =>
   price === null
@@ -213,35 +200,113 @@ export function Brand({ settings }: { settings: Settings }) {
 
 export function Header({ settings }: { settings: Settings }) {
   const [open, setOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState("");
+
+  useEffect(() => {
+    const ids = ["coleccion", "nosotros", "servicios", "contacto"];
+    const elements = ids.map(id => document.getElementById(id)).filter((el): el is HTMLElement => Boolean(el));
+    if (elements.length === 0) return;
+
+    const visible = new Map<string, number>();
+    const observer = new IntersectionObserver(
+      entries => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) visible.set(entry.target.id, entry.intersectionRatio);
+          else visible.delete(entry.target.id);
+        }
+        if (visible.size > 0) {
+          const top = [...visible.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+          if (top) setActiveSection(top);
+        } else if (window.scrollY < 260) {
+          setActiveSection("");
+        }
+      },
+      { rootMargin: "-32% 0px -48% 0px", threshold: [0, 0.2, 0.5, 0.8] }
+    );
+    elements.forEach(el => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
   return (
-    <header className="site-header">
-      <div className="header-inner">
-        <Brand settings={settings} />
-        <nav aria-label="Navegación principal" className={open ? "nav open" : "nav"}>
-          <Link onClick={() => setOpen(false)} href="/#coleccion">La colección</Link>
-          <Link onClick={() => setOpen(false)} href="/#nosotros">Nuestra esencia</Link>
-          <Link onClick={() => setOpen(false)} href="/#servicios">Vendé o importá</Link>
-          <Link onClick={() => setOpen(false)} href="/#contacto">Contacto</Link>
-        </nav>
-        <a className="button small header-cta" href={whatsapp(settings.whatsapp)} target="_blank" rel="noreferrer">
-          Hablemos <ArrowUpRight size={15} />
-        </a>
-        <button
-          className="icon-button mobile-toggle"
-          aria-label={open ? "Cerrar menú" : "Abrir menú"}
-          aria-expanded={open}
-          onClick={() => setOpen(!open)}
-        >
-          {open ? <X /> : <Menu />}
-        </button>
-      </div>
-    </header>
+    <>
+      <header className="site-header">
+        <div className="header-inner">
+          <Brand settings={settings} />
+          <nav aria-label="Navegación principal" className={open ? "nav open" : "nav"}>
+            <Link
+              onClick={() => setOpen(false)}
+              className={activeSection === "coleccion" ? "active" : undefined}
+              href="/#coleccion"
+            >
+              La colección
+            </Link>
+            <Link
+              onClick={() => setOpen(false)}
+              className={activeSection === "nosotros" ? "active" : undefined}
+              href="/#nosotros"
+            >
+              Nuestra esencia
+            </Link>
+            <Link
+              onClick={() => setOpen(false)}
+              className={activeSection === "servicios" ? "active" : undefined}
+              href="/#servicios"
+            >
+              Vendé o importá
+            </Link>
+            <Link
+              onClick={() => setOpen(false)}
+              className={activeSection === "contacto" ? "active" : undefined}
+              href="/#contacto"
+            >
+              Contacto
+            </Link>
+            <div className="mobile-nav-footer">
+              <a
+                className="button small"
+                href={whatsapp(settings.whatsapp)}
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => setOpen(false)}
+              >
+                <MessageCircle size={15} /> Hablemos por WhatsApp <ArrowUpRight size={14} />
+              </a>
+              <Link className="mobile-nav-admin" href="/admin" onClick={() => setOpen(false)}>
+                <ShieldCheck size={13} /> Administración
+              </Link>
+            </div>
+          </nav>
+          <a className="button small header-cta" href={whatsapp(settings.whatsapp)} target="_blank" rel="noreferrer">
+            Hablemos <ArrowUpRight size={15} />
+          </a>
+          <button
+            type="button"
+            className="icon-button mobile-toggle"
+            aria-label={open ? "Cerrar menú" : "Abrir menú"}
+            aria-expanded={open}
+            onClick={() => setOpen(!open)}
+          >
+            {open ? <X /> : <Menu />}
+          </button>
+        </div>
+      </header>
+      {open && <div className="mobile-nav-backdrop" aria-hidden="true" onClick={() => setOpen(false)} />}
+    </>
   );
 }
 
-export function Footer({ settings }: { settings: Settings }) {
+export function Footer({ settings, className = "" }: { settings: Settings; className?: string }) {
   return (
-    <footer className="site-footer">
+    <footer className={className ? `site-footer ${className}` : "site-footer"}>
       <div className="footer-top">
         <Brand settings={settings} />
         <p>
@@ -620,7 +685,7 @@ export function QrSheetModal({
             </div>
           </div>
           <div className="sheet-contact">
-            <strong>+{settings.whatsapp}</strong>
+            <strong>{formatPhone(settings.whatsapp)}</strong>
             <span>@{settings.instagram.split("/").filter(Boolean).pop() || "dreamcars_py"}</span>
           </div>
         </div>
@@ -675,11 +740,41 @@ export function Modal({
 }
 
 export function FloatingContact({ settings }: { settings: Settings }) {
+  const [scrolledPastHero, setScrolledPastHero] = useState(false);
+  const [footerVisible, setFooterVisible] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolledPastHero(window.scrollY > 360);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    const footer = document.querySelector(".site-footer");
+    let observer: IntersectionObserver | undefined;
+    if (footer) {
+      observer = new IntersectionObserver(
+        entries => {
+          setFooterVisible(entries.some(e => e.isIntersecting));
+        },
+        { threshold: 0.05 }
+      );
+      observer.observe(footer);
+    }
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      observer?.disconnect();
+    };
+  }, []);
+
+  const visible = scrolledPastHero && !footerVisible;
+
   return (
     <a
-      className="floating-contact"
+      className={visible ? "floating-contact visible" : "floating-contact"}
       href={whatsapp(settings.whatsapp)}
       aria-label="Consultar por WhatsApp"
+      aria-hidden={!visible}
+      tabIndex={visible ? undefined : -1}
       target="_blank"
       rel="noreferrer"
     >

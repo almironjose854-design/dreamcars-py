@@ -35,11 +35,7 @@ yarn-error.log*
 /.wrangler/
 /.sites-runtime/
 
-# Workspace scaffolding and publication archives
-/.agents/
-/.codex/
-/outputs/
-/work/
+# Local metadata
 *.local.txt
 !/.env.example
 

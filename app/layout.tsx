@@ -1,7 +1,6 @@
 import type { Metadata,Viewport } from "next";
 import {SITE_URL} from "../lib/site-url";
 import "./globals.css";
-import "./refinements.css";
 import "./brand.css";
 import "./accessibility.css";
 

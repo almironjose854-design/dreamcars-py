@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import type { AdminSessionInfo } from "../../lib/types";
 import { api } from "../components";
-import { DEFAULT_LOGO } from "../../lib/branding";
+import { brandLogo, DEFAULT_LOGO } from "../../lib/branding";
 
 export function PasswordInput({
   label,
@@ -90,7 +90,7 @@ export default function AdminLogin({
     <main className="admin-login">
       <section className="login-story">
         <Link href="/" className="login-brand">
-          <img src={DEFAULT_LOGO} alt="Dream Cars PY" decoding="async" />
+          <img src={brandLogo(DEFAULT_LOGO)} alt="Dream Cars PY" decoding="async" />
           <span>DESDE LUQUE. CON PASIÓN.</span>
         </Link>
         <img className="login-car" src="/media/honda-s2000.jpg" alt="Honda S2000 en el garage de Dream Cars" decoding="async" />

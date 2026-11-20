@@ -2,7 +2,19 @@ import { existsSync, copyFileSync, writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { webcrypto } from "node:crypto";
-import { projectRoot } from "./sites-env.mjs";
+import { fileURLToPath } from "node:url";
+import { configureToolEnvironment } from "./tool-environment.mjs";
+
+const projectRoot = fileURLToPath(new URL("../", import.meta.url));
+configureToolEnvironment(projectRoot);
+process.chdir(projectRoot);
+for (const directory of [
+  path.dirname(process.env.WRANGLER_LOG_PATH),
+  process.env.WRANGLER_REGISTRY_PATH,
+  process.env.MINIFLARE_REGISTRY_PATH,
+]) {
+  mkdirSync(directory, { recursive: true });
+}
 
 const crypto = globalThis.crypto ?? webcrypto;
 const encoder = new TextEncoder();

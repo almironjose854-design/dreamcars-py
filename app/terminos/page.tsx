@@ -1,12 +1,13 @@
 import { Link } from "../../lib/nav-link";
-import { settings } from "../../lib/store";
-import { Header, Footer, whatsapp } from "../components";
+import { whatsapp } from "../../lib/branding";
+import { publicSettings, settings } from "../../lib/store";
+import { Header, Footer } from "../components";
 
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
   const config = await settings();
-  const s = config.data;
+  const s = publicSettings(config.data);
   const waHref = whatsapp(s.whatsapp, "Hola Dream Cars PY, quiero hablar con el equipo.");
 
   return (

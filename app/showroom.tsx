@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link } from "../lib/nav-link";
 import {
   ArrowDown,
@@ -28,6 +28,7 @@ import {
   convertMoney,
   displayVehicleVersion,
   Footer,
+  formatPhone,
   Header,
   FloatingContact,
   imageSrcSet,
@@ -252,7 +253,8 @@ export default function Showroom({ initialCatalog }: { initialCatalog?: { settin
 
   const heroVehicles = useMemo(() => {
     const featuredList = cars.filter(v => v.featured);
-    return featuredList.length > 0 ? featuredList : cars.slice(0, 3);
+    const rest = cars.filter(v => !v.featured);
+    return [...featuredList, ...rest].slice(0, 3);
   }, [cars]);
 
   useEffect(() => {
@@ -283,8 +285,9 @@ export default function Showroom({ initialCatalog }: { initialCatalog?: { settin
     [cars]
   );
 
-  const secondaryFilterCount = [brand, body, availFilter, transFilter, favoriteOnly ? "1" : ""].filter(Boolean).length;
-  const hasActiveFilters = Boolean(query || secondaryFilterCount > 0);
+  const hasPricedCars = useMemo(() => cars.some(v => v.price !== null), [cars]);
+  const secondaryFilterCount = [body, availFilter, transFilter, favoriteOnly ? "1" : ""].filter(Boolean).length;
+  const hasActiveFilters = Boolean(query || brand || secondaryFilterCount > 0);
 
   const clearAllFilters = () => {
     setQuery("");
@@ -484,8 +487,11 @@ export default function Showroom({ initialCatalog }: { initialCatalog?: { settin
           <div className="brand-pills-bar" role="group" aria-label="Filtro rápido por marca">
             <button
               type="button"
-              className={!brand ? "brand-pill active" : "brand-pill"}
-              onClick={() => setBrand("")}
+              className={!brand && !favoriteOnly ? "brand-pill active" : "brand-pill"}
+              onClick={() => {
+                setBrand("");
+                setFavoriteOnly(false);
+              }}
             >
               <span>Todos</span>
               <small>{cars.length}</small>
@@ -536,18 +542,9 @@ export default function Showroom({ initialCatalog }: { initialCatalog?: { settin
             </button>
 
             <label className="filter-select">
-              <span>Marca</span>
-              <select aria-label="Filtrar por marca" value={brand} onChange={e => setBrand(e.target.value)}>
-                <option value="">Todas las marcas</option>
-                {brandsWithCount.map(([b]) => (
-                  <option key={b}>{b}</option>
-                ))}
-              </select>
-            </label>
-            <label className="filter-select">
               <span>Carrocería</span>
               <select aria-label="Filtrar por carrocería" value={body} onChange={e => setBody(e.target.value)}>
-                <option value="">Todas las carrocerías</option>
+                <option value="">Todas</option>
                 {[...new Set(cars.map(v => v.body))].sort().map(b => (
                   <option key={b}>{b}</option>
                 ))}
@@ -560,7 +557,7 @@ export default function Showroom({ initialCatalog }: { initialCatalog?: { settin
                 value={availFilter}
                 onChange={e => setAvailFilter(e.target.value)}
               >
-                <option value="">Todos los estados</option>
+                <option value="">Todos</option>
                 {Object.entries(availability).map(([k, label]) => (
                   <option key={k} value={k}>
                     {label}
@@ -624,25 +621,27 @@ export default function Showroom({ initialCatalog }: { initialCatalog?: { settin
               )}
             </div>
             <div className="catalog-meta-right">
-              <label>
-                Moneda
-                <select
-                  aria-label="Moneda de visualización"
-                  value={displayCurrency}
-                  onChange={e => setDisplayCurrency(e.target.value as "ORIGINAL" | "USD" | "PYG")}
-                >
-                  <option value="ORIGINAL">Original</option>
-                  <option value="USD">USD ($)</option>
-                  <option value="PYG">PYG (₲ ref.)</option>
-                </select>
-              </label>
+              {hasPricedCars && (
+                <label>
+                  Moneda
+                  <select
+                    aria-label="Moneda de visualización"
+                    value={displayCurrency}
+                    onChange={e => setDisplayCurrency(e.target.value as "ORIGINAL" | "USD" | "PYG")}
+                  >
+                    <option value="ORIGINAL">Original</option>
+                    <option value="USD">USD ($)</option>
+                    <option value="PYG">PYG (₲ ref.)</option>
+                  </select>
+                </label>
+              )}
               <label>
                 Ordenar por{" "}
                 <select aria-label="Ordenar vehículos" value={sort} onChange={e => setSort(e.target.value)}>
                   <option value="featured">Destacados</option>
                   <option value="recent">Más recientes</option>
-                  <option value="price-up">Menor precio</option>
-                  <option value="price-down">Mayor precio</option>
+                  {hasPricedCars && <option value="price-up">Menor precio</option>}
+                  {hasPricedCars && <option value="price-down">Mayor precio</option>}
                 </select>
               </label>
             </div>
@@ -696,6 +695,31 @@ export default function Showroom({ initialCatalog }: { initialCatalog?: { settin
                   exchangeRate={rate}
                 />
               ))}
+              {!favoriteOnly && filtered.length > 0 && filtered.length % 3 !== 0 && (
+                <article className="car-card finder-card">
+                  <div className="finder-card-body">
+                    <p className="eyebrow">
+                      <span className="lime">A PEDIDO /</span> IMPORTACIÓN DIRECTA
+                    </p>
+                    <h3>¿Buscás un modelo específico?</h3>
+                    <p>
+                      Localizamos e importamos unidades seleccionadas desde Japón, EE.UU. o Europa según tus especificaciones.
+                    </p>
+                    <div className="finder-card-actions">
+                      <button
+                        type="button"
+                        className="button small"
+                        onClick={() => {
+                          setImportTargetCar("");
+                          setImportModal(true);
+                        }}
+                      >
+                        Encargar importación <ArrowUpRight size={15} />
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              )}
             </div>
           )}
 
@@ -816,6 +840,28 @@ export default function Showroom({ initialCatalog }: { initialCatalog?: { settin
               </button>
             </article>
           </div>
+          <div className="process-strip" aria-label="Cómo operamos en el garage">
+            <div>
+              <span>01</span>
+              <strong>Selección</strong>
+              <p>Elegís una unidad del garage o encargás tu próximo clásico.</p>
+            </div>
+            <div>
+              <span>02</span>
+              <strong>Verificación</strong>
+              <p>Control mecánico, historial y documentación transparente.</p>
+            </div>
+            <div>
+              <span>03</span>
+              <strong>Negociación</strong>
+              <p>Trato directo, toma de vehículo o consignación en showroom.</p>
+            </div>
+            <div>
+              <span>04</span>
+              <strong>Entrega</strong>
+              <p>Acompañamiento completo hasta el retiro en Luque.</p>
+            </div>
+          </div>
         </section>
 
         <section className="instagram-band">
@@ -864,7 +910,7 @@ export default function Showroom({ initialCatalog }: { initialCatalog?: { settin
                   <a href={whatsapp(settings.whatsapp)} target="_blank" rel="noreferrer">
                     <MessageCircle size={18} />
                     <div>
-                      <strong>+{settings.whatsapp}</strong>
+                      <strong>{formatPhone(settings.whatsapp)}</strong>
                       <span>
                         Atención directa por WhatsApp <ArrowUpRight size={12} />
                       </span>
@@ -940,7 +986,10 @@ export default function Showroom({ initialCatalog }: { initialCatalog?: { settin
               </span>
             </label>
           </div>
-          <div className="comparison-grid">
+          <div
+            className="comparison-grid"
+            style={{ "--compare-cols": String(comparedCars.length) } as CSSProperties}
+          >
             {comparedCars.map(v => (
               <div key={v.id} className="comparison-col">
                 <div className="comparison-photo-wrap">

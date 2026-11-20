@@ -133,10 +133,22 @@ export async function vehicles() {
       .filter(v => !deletedSet.has(v.id))
       .map(v => [v.id, { ...v, _etag: null }])
   );
+  const GENERIC_GALLERY = new Set([
+    "/media/showroom.jpg",
+    "/media/collection.jpg",
+    "/media/subaru-black.jpg"
+  ]);
   saved.forEach(v => {
     if (deletedSet.has(v.id)) return;
     const seed = seedMap.get(v.id);
-    if (seed && v.engine === "A confirmar" && v.images.length <= 1 && v.features.length === 0) {
+    const cleanImages =
+      seed && v.images.length > 1
+        ? (() => {
+            const own = v.images.filter(img => !GENERIC_GALLERY.has(img.url));
+            return own.length > 0 ? own : seed.images;
+          })()
+        : v.images;
+    if (seed && v.engine === "A confirmar" && cleanImages.length <= 1 && v.features.length === 0) {
       merged.set(v.id, {
         ...v,
         year: v.year ?? seed.year,
@@ -150,7 +162,7 @@ export async function vehicles() {
         videoUrl: v.videoUrl || seed.videoUrl
       });
     } else {
-      merged.set(v.id, v);
+      merged.set(v.id, { ...v, images: cleanImages });
     }
   });
   return [...merged.values()];

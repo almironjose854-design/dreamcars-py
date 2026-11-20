@@ -1,12 +1,13 @@
 import { Link } from "../../lib/nav-link";
-import { settings } from "../../lib/store";
-import { Header, Footer, whatsapp } from "../components";
+import { formatPhone, whatsapp } from "../../lib/branding";
+import { publicSettings, settings } from "../../lib/store";
+import { Header, Footer } from "../components";
 
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
   const config = await settings();
-  const s = config.data;
+  const s = publicSettings(config.data);
   const waHref = whatsapp(s.whatsapp, "Hola Dream Cars PY, tengo una consulta sobre mis datos personales.");
 
   return (
@@ -42,7 +43,7 @@ export default async function Page() {
         <p>
           Los favoritos se guardan únicamente en el almacenamiento local de tu navegador. Podés eliminarlos desde el
           catálogo o borrando los datos del sitio. Para solicitar acceso, corrección o eliminación de una consulta,
-          escribí al WhatsApp comercial <a href={waHref} target="_blank" rel="noreferrer">{s.whatsapp}</a>. El equipo
+          escribí al WhatsApp comercial <a href={waHref} target="_blank" rel="noreferrer">{formatPhone(s.whatsapp)}</a>. El equipo
           gestiona los datos y sus respaldos según corresponda a tu solicitud.
         </p>
         <p className="muted">Actualizado: 13 de noviembre de 2026.</p>

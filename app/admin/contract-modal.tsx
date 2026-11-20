@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { FileCheck2, Printer } from "lucide-react";
 import type { Settings, Vehicle } from "../../lib/types";
-import { displayVehicleVersion, Modal, money } from "../components";
+import { displayVehicleVersion, formatPhone, Modal, money } from "../components";
 
 export function ContractSheetModal({
   vehicle,
@@ -138,7 +138,7 @@ export function ContractSheetModal({
           <div className="sheet-header-brand">
             <strong>DREAM CARS_PY · SINCE 2012</strong>
             <span>
-              {settings.address} · {settings.city} · Tel. +{settings.whatsapp}
+              {settings.address} · {settings.city} · Tel. {formatPhone(settings.whatsapp)}
             </span>
           </div>
           <span className="sheet-badge">

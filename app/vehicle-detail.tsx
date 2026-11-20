@@ -134,22 +134,30 @@ export default function VehicleDetail({
   }, [totalImages]);
 
   useEffect(() => {
-    if (!lightbox) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (e.key === "Escape" && lightbox) {
         setLightbox(false);
         setZoomed(false);
-      } else if (e.key === "ArrowLeft") prevPhoto();
-      else if (e.key === "ArrowRight") nextPhoto();
+      } else if (totalImages > 1 && e.key === "ArrowLeft") {
+        prevPhoto();
+      } else if (totalImages > 1 && e.key === "ArrowRight") {
+        nextPhoto();
+      }
     };
     window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightbox, totalImages, nextPhoto, prevPhoto]);
+
+  useEffect(() => {
+    if (!lightbox) return;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [lightbox, nextPhoto, prevPhoto]);
+  }, [lightbox]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0]?.clientX ?? null;
@@ -195,7 +203,7 @@ export default function VehicleDetail({
         ) : (
           <>
             <div className="detail-grid">
-              <div>
+              <div className="detail-gallery-col">
                 <div className="detail-photo" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
                   <img
                     src={optimizedImageUrl(vehicle.images[safeIndex]?.url, 1280)}
@@ -246,7 +254,7 @@ export default function VehicleDetail({
                   const mediaUrl = (vehicle.videoUrl || vehicle.sourceUrl || "").trim();
                   if (!mediaUrl) return null;
                   const isDirectVideo = /\.(mp4|webm|mov)(\?.*)?$/i.test(mediaUrl) || mediaUrl.startsWith("/api/media/");
-                  const igMatch = mediaUrl.match(/instagram\.com\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/i);
+                  const igMatch = mediaUrl.match(/instagram\.com\/(?:[^/]+\/)?(?:p|reel|tv)\/([A-Za-z0-9_-]+)/i);
                   const ytMatch = mediaUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{6,})/i);
 
                   if (isDirectVideo) {
@@ -290,6 +298,13 @@ export default function VehicleDetail({
                           </a>
                         </div>
                       </div>
+                      {!showVideoEmbed && (igMatch || ytMatch) && (
+                        <p className="vehicle-video-note">
+                          {igMatch
+                            ? "Publicación oficial de la unidad en @dreamcars_py. Abrí el reproductor integrado o visitá Instagram."
+                            : "Video disponible de la unidad. Abrí el reproductor integrado para verlo sin salir de la ficha."}
+                        </p>
+                      )}
                       {showVideoEmbed && igMatch && (
                         <iframe
                           className="vehicle-video-iframe ig-iframe"
@@ -338,6 +353,24 @@ export default function VehicleDetail({
                       )}
                     </span>
                   )}
+                </div>
+                <div className="detail-quick-specs" aria-label="Especificaciones principales">
+                  <div>
+                    <span>Año</span>
+                    <strong>{vehicle.year || "A confirmar"}</strong>
+                  </div>
+                  <div>
+                    <span>Motor</span>
+                    <strong>{vehicle.engine || "A confirmar"}</strong>
+                  </div>
+                  <div>
+                    <span>Transmisión</span>
+                    <strong>{vehicle.transmission || "A confirmar"}</strong>
+                  </div>
+                  <div>
+                    <span>Tracción</span>
+                    <strong>{vehicle.drive || "A confirmar"}</strong>
+                  </div>
                 </div>
                 <p className="detail-description">{vehicle.description}</p>
 
@@ -540,12 +573,14 @@ export default function VehicleDetail({
               {vehicle.features.length > 0 && (
                 <div className="equipment">
                   <h3>Equipamiento y detalles</h3>
-                  {vehicle.features.map(f => (
-                    <span key={f}>
-                      <Check size={15} />
-                      {f}
-                    </span>
-                  ))}
+                  <div className="equipment-grid">
+                    {vehicle.features.map(f => (
+                      <span key={f}>
+                        <Check size={15} />
+                        {f}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
               <p className="muted">
@@ -638,7 +673,38 @@ export default function VehicleDetail({
           </>
         )}
       </main>
-      <Footer settings={settings} />
+      <Footer settings={settings} className={vehicle ? "with-mobile-bar" : ""} />
+
+      {vehicle && (
+        <div className="mobile-detail-sticky-bar" role="region" aria-label="Acción rápida">
+          <div className="mobile-sticky-meta">
+            <strong>
+              {vehicle.brand} {vehicle.model}
+            </strong>
+            <span>
+              {vehicle.availability === "sold" ? "Leyenda entregada" : money(vehicle.price, vehicle.currency)}
+            </span>
+          </div>
+          <a
+            className="button small"
+            target="_blank"
+            rel="noreferrer"
+            onClick={() => trackVehicleMetric(vehicle.id, "whatsapp")}
+            href={whatsapp(
+              settings.whatsapp,
+              vehicle.availability === "sold"
+                ? `¡Hola, Dream Cars! Vi el ${vehicle.brand} ${vehicle.model} (${displayVehicleVersion(
+                    vehicle
+                  )}) en Leyendas Entregadas y quiero consultar por una unidad similar.`
+                : `¡Hola, Dream Cars! Me interesa el ${vehicle.brand} ${vehicle.model} (${displayVehicleVersion(
+                    vehicle
+                  )}). Quisiera confirmar precio, ficha técnica y disponibilidad.`
+            )}
+          >
+            <MessageCircle size={15} /> {vehicle.availability === "sold" ? "Consultar similar" : "WhatsApp"}
+          </a>
+        </div>
+      )}
 
       {lightbox && vehicle && (
         <div
