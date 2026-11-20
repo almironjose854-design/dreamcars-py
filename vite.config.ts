@@ -2,17 +2,6 @@ import vinext from "vinext";
 import { defineConfig } from "vite";
 import { configureToolEnvironment } from "./scripts/tool-environment.mjs";
 
-const localBindingConfig = {
-  main: "./worker/index.ts",
-  compatibility_flags: ["nodejs_compat"],
-  r2_buckets: [
-    {
-      binding: "BUCKET",
-      bucket_name: "site-creator-r2",
-    },
-  ],
-};
-
 export default defineConfig(async () => {
   configureToolEnvironment(process.cwd());
 
@@ -25,7 +14,6 @@ export default defineConfig(async () => {
       cloudflare({
         viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
         inspectorPort: false,
-        config: localBindingConfig,
       }),
     ],
   };

@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "vinext dev --port 5173",
     "build": "vinext build",
+    "deploy": "vinext build && wrangler deploy",
     "start": "node scripts/start-render.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
   },
